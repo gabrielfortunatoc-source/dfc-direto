@@ -1,0 +1,1250 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fluxo de Caixa — Método Direto</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #181c27;
+    --surface2: #1e2335;
+    --border: #2a2f45;
+    --accent: #4f8ef7;
+    --accent2: #2dd4bf;
+    --green: #22c55e;
+    --red: #f43f5e;
+    --yellow: #f59e0b;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --header-bg: #2d3550;
+    --row-alt: #1a1f30;
+    --group-bg: #232840;
+    --subgroup-bg: #1d2236;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { 
+    background: var(--bg); 
+    color: var(--text); 
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 13px;
+    min-height: 100vh;
+  }
+
+  /* HEADER */
+  .top-bar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .logo {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--accent);
+    letter-spacing: 1px;
+  }
+  .logo span { color: var(--muted); }
+  .top-actions { display: flex; gap: 8px; align-items: center; }
+
+  /* TABS */
+  .tabs {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    display: flex;
+    gap: 2px;
+  }
+  .tab {
+    padding: 10px 20px;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.2s;
+  }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab:hover:not(.active) { color: var(--text); }
+
+  /* CONTENT */
+  .content { padding: 24px; max-width: 1400px; margin: 0 auto; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* UPLOAD AREA */
+  .upload-zone {
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    padding: 48px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s;
+    background: var(--surface);
+    position: relative;
+  }
+  .upload-zone:hover, .upload-zone.drag { 
+    border-color: var(--accent); 
+    background: rgba(79,142,247,0.05);
+  }
+  .upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
+  .upload-icon { font-size: 36px; margin-bottom: 12px; }
+  .upload-title { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+  .upload-sub { color: var(--muted); font-size: 12px; }
+
+  .file-info {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 16px;
+  }
+  .file-icon { font-size: 24px; }
+  .file-details { flex: 1; }
+  .file-name { font-weight: 600; color: var(--text); }
+  .file-meta { color: var(--muted); font-size: 11px; margin-top: 2px; }
+
+  /* CONTROLS */
+  .controls-row {
+    display: flex;
+    gap: 12px;
+    margin: 20px 0;
+    align-items: flex-end;
+    flex-wrap: wrap;
+  }
+  .control-group { display: flex; flex-direction: column; gap: 6px; }
+  .control-label { font-size: 11px; color: var(--muted); font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
+  select, input[type="text"] {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 13px;
+    outline: none;
+    transition: border 0.2s;
+    min-width: 140px;
+  }
+  select:focus, input:focus { border-color: var(--accent); }
+
+  /* BUTTONS */
+  .btn {
+    padding: 8px 18px;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: #3d7de6; }
+  .btn-primary:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
+  .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .btn-secondary:hover { background: var(--border); }
+  .btn-green { background: var(--green); color: #fff; }
+  .btn-green:hover { background: #16a34a; }
+  .btn-sm { padding: 5px 12px; font-size: 12px; }
+
+  /* MONTH PILLS */
+  .month-selector {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin: 8px 0 20px;
+  }
+  .month-pill {
+    padding: 5px 14px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    transition: all 0.2s;
+    background: var(--surface2);
+  }
+  .month-pill.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  .month-pill:hover:not(.active) { border-color: var(--accent); color: var(--text); }
+
+  /* DFC TABLE */
+  .dfc-wrapper {
+    background: var(--surface);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    overflow: hidden;
+    margin-bottom: 24px;
+  }
+  .dfc-title-bar {
+    background: var(--header-bg);
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .dfc-title { font-size: 14px; font-weight: 700; letter-spacing: 0.5px; color: #fff; }
+  .dfc-subtitle { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .table-scroll { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    background: var(--header-bg);
+    padding: 10px 16px;
+    text-align: right;
+    font-size: 12px;
+    font-weight: 600;
+    color: #fff;
+    white-space: nowrap;
+    border-right: 1px solid rgba(255,255,255,0.08);
+  }
+  th:first-child { text-align: left; padding-left: 20px; min-width: 280px; }
+  th.total-col { background: #3a4060; }
+  td {
+    padding: 7px 16px;
+    text-align: right;
+    border-right: 1px solid var(--border);
+    border-bottom: 1px solid rgba(42,47,69,0.5);
+    font-size: 12.5px;
+    white-space: nowrap;
+  }
+  td:first-child { text-align: left; padding-left: 20px; }
+
+  /* Row types */
+  tr.group-0 td { 
+    background: var(--group-bg);
+    font-weight: 700;
+    font-size: 13px;
+    color: #fff;
+    border-bottom: 1px solid var(--border);
+  }
+  tr.group-1 td { 
+    background: var(--subgroup-bg);
+    font-weight: 600;
+    color: var(--text);
+    padding-left: 36px !important;
+  }
+  tr.group-2 td {
+    background: transparent;
+    color: #a0aec0;
+    padding-left: 52px !important;
+    font-size: 12px;
+  }
+  tr.total-row td {
+    background: #2d3550;
+    font-weight: 700;
+    color: #fff;
+    font-size: 13px;
+    border-top: 2px solid var(--accent);
+  }
+  tr:hover td { background: rgba(79,142,247,0.04); }
+  tr.group-0:hover td { background: var(--group-bg); }
+  tr.total-row:hover td { background: #2d3550; }
+
+  td.total-col { background: rgba(79,142,247,0.06); font-weight: 600; }
+  tr.group-0 td.total-col { background: rgba(79,142,247,0.12); }
+  tr.total-row td.total-col { background: rgba(79,142,247,0.18); }
+
+  .val-pos { color: var(--green); }
+  .val-neg { color: var(--red); }
+  .val-zero { color: var(--muted); }
+
+  /* STATUS */
+  .status-bar {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+    font-size: 12px;
+  }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .status-dot.ok { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .status-dot.warn { background: var(--yellow); }
+  .status-dot.err { background: var(--red); }
+
+  /* SUMMARY CARDS */
+  .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 24px; }
+  .summary-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+  .summary-label { font-size: 11px; color: var(--muted); margin-bottom: 6px; font-weight: 500; }
+  .summary-val { font-size: 20px; font-weight: 700; font-family: 'IBM Plex Mono', monospace; }
+  .summary-val.pos { color: var(--green); }
+  .summary-val.neg { color: var(--red); }
+
+  /* UNMATCHED */
+  .unmatched-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-top: 16px;
+  }
+  .unmatched-title { font-size: 13px; font-weight: 600; margin-bottom: 12px; color: var(--yellow); }
+  .unmatched-list { font-size: 12px; color: var(--muted); max-height: 200px; overflow-y: auto; }
+  .unmatched-item { padding: 4px 0; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; }
+
+  /* HIDDEN */
+  #result-section { display: none; }
+  #loading { display: none; align-items: center; gap: 10px; padding: 20px; color: var(--muted); }
+  .spinner { width: 18px; height: 18px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* PASTE */
+  .paste-area {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 12px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    border-radius: 8px;
+    resize: vertical;
+    min-height: 140px;
+    outline: none;
+    transition: border 0.2s;
+  }
+  .paste-area:focus { border-color: var(--accent); }
+
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .tag-blue { background: rgba(79,142,247,0.15); color: var(--accent); }
+  .tag-green { background: rgba(34,197,94,0.15); color: var(--green); }
+  .tag-yellow { background: rgba(245,158,11,0.15); color: var(--yellow); }
+
+  .section-title { font-size: 14px; font-weight: 600; margin-bottom: 12px; color: var(--text); }
+
+  .alert {
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    margin-bottom: 12px;
+    border-left: 3px solid;
+  }
+  .alert-info { background: rgba(79,142,247,0.08); border-color: var(--accent); color: var(--accent); }
+  .alert-warn { background: rgba(245,158,11,0.08); border-color: var(--yellow); color: var(--yellow); }
+
+  .row-expand { cursor: pointer; }
+  .row-expand:hover td:first-child { color: var(--accent); }
+  .expand-icon { font-size: 10px; margin-right: 6px; transition: transform 0.2s; display: inline-block; }
+  .expand-icon.open { transform: rotate(90deg); }
+  .detail-row { display: none; }
+  .detail-row.visible { display: table-row; }
+  .detail-row td { background: var(--bg) !important; color: var(--muted) !important; font-size: 11px !important; padding-left: 68px !important; }
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <div class="logo">DFC<span>//</span>DIRETO</div>
+  <div class="top-actions">
+    <span id="empresa-label" style="color:var(--muted);font-size:12px;"></span>
+    <button class="btn btn-secondary btn-sm" onclick="showTab('importar')">+ Novo Razão</button>
+    <button class="btn btn-green btn-sm" id="btn-export" onclick="exportExcel()" style="display:none">⬇ Exportar Excel</button>
+  </div>
+</div>
+
+<div class="tabs">
+  <div class="tab active" onclick="showTab('importar')" id="tab-importar">📂 Importar Razão</div>
+  <div class="tab" onclick="showTab('dfc')" id="tab-dfc">📊 Fluxo de Caixa</div>
+  <div class="tab" onclick="showTab('disponibilidades')" id="tab-disponibilidades">🏦 Disponibilidades</div>
+</div>
+
+<div class="content">
+
+  <!-- IMPORTAR -->
+  <div class="panel active" id="panel-importar">
+    <div class="section-title">Importar Razão Contábil</div>
+    <div class="alert alert-info">
+      Suporta razão exportado do <strong>Domínio (Thomson Reuters)</strong>, <strong>Bravos/Linx</strong> e outros ERPs. Cole direto do Excel ou faça upload do arquivo.
+    </div>
+
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+      <!-- Upload -->
+      <div>
+        <div class="control-label" style="margin-bottom:8px">Upload de arquivo (.xlsx, .xls, .csv)</div>
+        <div class="upload-zone" id="dropzone">
+          <input type="file" id="file-input" accept=".xlsx,.xls,.csv" onchange="handleFile(event)">
+          <div class="upload-icon">📄</div>
+          <div class="upload-title">Arraste ou clique para selecionar</div>
+          <div class="upload-sub">Razão contábil exportado do ERP</div>
+        </div>
+        <div id="file-info" style="display:none" class="file-info">
+          <div class="file-icon">📊</div>
+          <div class="file-details">
+            <div class="file-name" id="file-name-display"></div>
+            <div class="file-meta" id="file-meta-display"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Paste -->
+      <div>
+        <div class="control-label" style="margin-bottom:8px">Ou cole o conteúdo (Ctrl+C do Excel)</div>
+        <textarea class="paste-area" id="paste-area" placeholder="Cole aqui o conteúdo do razão copiado do Excel...&#10;&#10;Empresa | Conta Contábil | Data | ... | Débito | Crédito | Saldo Atual"></textarea>
+        <button class="btn btn-secondary btn-sm" style="margin-top:6px" onclick="parsePaste()">Processar colagem</button>
+      </div>
+    </div>
+
+    <div id="file-info-block" style="display:none; margin-top:16px;">
+      <div id="loading"><div class="spinner"></div> Processando razão...</div>
+      <div id="file-preview"></div>
+      <div class="controls-row" id="controls-row" style="display:none">
+        <div class="control-group">
+          <div class="control-label">Empresa</div>
+          <select id="sel-empresa" onchange="reProcess()"></select>
+        </div>
+        <div class="control-group">
+          <div class="control-label">Período</div>
+          <select id="sel-periodo" onchange="reProcess()">
+            <option value="all">Todos os meses</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" onclick="gerarDFC()">⚡ Gerar DFC</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- DFC -->
+  <div class="panel" id="panel-dfc">
+    <div id="dfc-empty" style="text-align:center;padding:60px;color:var(--muted)">
+      <div style="font-size:48px;margin-bottom:12px">📊</div>
+      <div style="font-size:16px;font-weight:600;margin-bottom:6px">Nenhum dado carregado</div>
+      <div style="font-size:13px">Importe um razão contábil na aba anterior para gerar o DFC</div>
+    </div>
+    <div id="result-section">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+        <div>
+          <div class="section-title" id="dfc-header-title" style="margin-bottom:2px">FLUXO DE CAIXA</div>
+          <div id="dfc-header-sub" style="font-size:11px;color:var(--muted)"></div>
+        </div>
+        <div id="month-pills-container" class="month-selector"></div>
+      </div>
+      <div id="summary-cards" class="summary-grid"></div>
+      <div id="status-bar-container"></div>
+      <div id="dfc-table-container"></div>
+      <div id="unmatched-container"></div>
+    </div>
+  </div>
+
+  <!-- DISPONIBILIDADES -->
+  <div class="panel" id="panel-disponibilidades">
+    <div id="disp-empty" style="text-align:center;padding:60px;color:var(--muted)">
+      <div style="font-size:48px;margin-bottom:12px">🏦</div>
+      <div style="font-size:16px;font-weight:600;margin-bottom:6px">Nenhum dado carregado</div>
+    </div>
+    <div id="disp-result" style="display:none">
+      <div class="section-title">Disponibilidades por Banco</div>
+      <div id="disp-table-container"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ============================================================
+// DE-PARA MAPPING (embedded from de_para.xlsx)
+// ============================================================
+const CONTA_MAP = {"1.1.01.01.01.01": {"desc": "CAIXA GERAL", "subgrupo": "Disponibilidades Operacionais", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.1.01.01.01.02": {"desc": "FUNDO FIXO", "subgrupo": "Disponibilidades Operacionais", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.1.01.03.01.07": {"desc": "BANCO BRASIL S/A", "subgrupo": "Disponibilidades Operacionais", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.1.01.02.01.05": {"desc": "BANCO BRADESCO - 13585-2", "subgrupo": "Disponibilidades Operacionais", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.1.01.02.01.06": {"desc": "BANCO DO BRASIL - 4547-0", "subgrupo": "Disponibilidades Operacionais", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.1.01.02.01.07": {"desc": "BANCO BRADESCO - 44208-9", "subgrupo": "Disponibilidades Operacionais", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.1.01.02.01.08": {"desc": "BANCO BRADESCO - 55675-0 ", "subgrupo": "Disponibilidades Operacionais", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.1.01.02.01.01": {"desc": "BANCO BRADESCO 102547", "subgrupo": "Disponibilidades Operacionais", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.1.01.02.01.02": {"desc": "BANCO BRADESCO - 2226-8", "subgrupo": "Disponibilidades Operacionais", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.1.01.02.01.03": {"desc": "BANCO BRADESCO - 127851-7", "subgrupo": "Disponibilidades Operacionais", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.1.01.02.01.04": {"desc": "BANCO BRADESCO - 47151-8", "subgrupo": "Disponibilidades Operacionais", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.1.01.02.01.09": {"desc": "BANCO DA DAYCOVAL 1504100-1", "subgrupo": "Disponibilidades Operacionais", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.1.01.02.01.10": {"desc": "BANCO DA DAYCOVAL 1504100-1", "subgrupo": "Disponibilidades Operacionais", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.1.01.02.01.11": {"desc": "BANCO BRADESCO 2011", "subgrupo": "Disponibilidades Operacionais", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.1.01.03.01.06": {"desc": "BRADESCO APLICACAO", "subgrupo": "Disponibilidades Operacionais", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.1.01.04.01.01": {"desc": "NUMERÁRIOS EM TRÂNSITO - CONCILIAR", "subgrupo": "Disponibilidades Operacionais", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.1.01.04.01.02": {"desc": "NUMERÁRIOS EM TRÂNSITO - ENTRE EMPRESAS", "subgrupo": "Disponibilidades Operacionais", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "2.1.04.01.01.02": {"desc": "TRANSITÓRIA ADIANT. DE CLIENTES", "subgrupo": "Disponibilidades Operacionais", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.1.02.01.02.01": {"desc": "FUNDO DE RETIRADA APLICADO", "subgrupo": "Plano de Capitalização", "grupo": "( -  ) INVESTIMENTOS", "codigo": "Ativo"}, "1.1.02.01.02.05": {"desc": "FUNDO DE RETIRDA APLICADOS VANS", "subgrupo": "Plano de Capitalização", "grupo": "( -  ) INVESTIMENTOS", "codigo": "Ativo"}, "1.1.02.01.03.07": {"desc": "BONIFICACOES/COMISSOES A RECEBER", "subgrupo": "Contas a Receber", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.1.02.02.01.01": {"desc": "CARTAO DE CREDITO A RECEBER", "subgrupo": "Contas a Receber", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.1.02.02.02.03": {"desc": "CHEQUES EM CUSTODIAS", "subgrupo": "Contas a Receber", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.1.02.02.02.01": {"desc": "CHEQUES A DEPOSITAR", "subgrupo": "Outros Valores a Receber", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.1.02.02.04.01": {"desc": "ADMINISTRADORA 1", "subgrupo": "Outros Valores a Receber", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.1.02.02.04.02": {"desc": "CONSORCIO GRUPO 0773", "subgrupo": "Investimentos", "grupo": "( -  ) INVESTIMENTOS", "codigo": "Ativo"}, "1.1.02.02.04.03": {"desc": "CONSORCIO - GRUPO 9229", "subgrupo": "Investimentos", "grupo": "( -  ) INVESTIMENTOS", "codigo": "Ativo"}, "1.1.03.01.01.01": {"desc": "DUPLICATAS A RECEBER", "subgrupo": "Contas a Receber", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.1.03.01.01.08": {"desc": "(-) DEVOLUCAO DE DUPLICATAS", "subgrupo": "Contas a Receber", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.1.03.01.03.01": {"desc": "(-) BANCO BRADESCO S/A", "subgrupo": "Contas a Receber", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.1.03.01.03.05": {"desc": "ANTECIPACAO DE CARTAO DE CREDITO", "subgrupo": "Contas a Receber", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.1.03.01.04.01": {"desc": "CHEQUES EM COBRANCA", "subgrupo": "Contas a Receber", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.1.04.01.01.02": {"desc": "ADIANTAMENTO DE FERIAS", "subgrupo": "Outros Valores a Receber", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.1.04.01.01.03": {"desc": "ADIANTAMENTO 13o.SALARIO", "subgrupo": "Outros Valores a Receber", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.1.04.01.01.05": {"desc": "ADIANTAMENTO DE COMISSOES", "subgrupo": "Outros Valores a Receber", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.1.04.01.01.07": {"desc": "ADIANTAMENTO A FUNCIONARIOS", "subgrupo": "Outros Valores a Receber", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.1.04.02.01.02": {"desc": "TRANSITÓRIA ADIANT. A FORNECEDORES", "subgrupo": "Outros Valores a Receber", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.1.04.02.01.01": {"desc": "ADIANTAMENTOS AOS FORNECEDORES", "subgrupo": "Adiantamentos a Fornecedores", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.1.04.03.01.01": {"desc": "ICMS - APURACAO CREDORA", "subgrupo": "Outros Valores a Receber", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.1.04.03.01.03": {"desc": "ICMS - IMOBILIZADO", "subgrupo": "Outros Valores a Receber", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.1.04.03.01.04": {"desc": "IRRF A COMPENSAR", "subgrupo": "Outros Valores a Receber", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.1.04.03.01.05": {"desc": "IRPJ - ESTIMATIVA", "subgrupo": "Outros Valores a Receber", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.1.04.03.01.06": {"desc": "CSLL - ESTIMATIVA", "subgrupo": "Outros Valores a Receber", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.1.04.03.01.09": {"desc": "PIS - CREDITOS A RECUPERAR", "subgrupo": "Outros Valores a Receber", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.1.04.03.01.10": {"desc": "COFINS - CREDITOS A RECUPERAR", "subgrupo": "Outros Valores a Receber", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.1.04.03.01.12": {"desc": "ISS A COMPENSAR", "subgrupo": "Outros Valores a Receber", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.1.04.03.01.17": {"desc": "CSLL A RECUPERAR", "subgrupo": "Outros Valores a Receber", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.1.05.01.21.01": {"desc": "CAMINHÕES", "subgrupo": "Estoques", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.1.05.01.21.36": {"desc": "ONIBUS CHASSIS/PLATAFORMA MB", "subgrupo": "Estoques", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.1.05.01.23.01": {"desc": "VEICULOS NACIONAIS USADOS OM", "subgrupo": "Estoques", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.1.05.03.01.01": {"desc": "PECAS, AGREGADOS, MOTORES NOVOS MB", "subgrupo": "Estoques", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.1.05.03.01.03": {"desc": "PECAS, AGREG, MOT.NOVOS OF", "subgrupo": "Estoques", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.1.05.03.01.06": {"desc": "OUTRAS MERCADORIAS", "subgrupo": "Estoques", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.1.05.03.01.07": {"desc": "PECAS SPRINTER", "subgrupo": "Estoques", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.1.05.03.01.09": {"desc": "COMBUSTIVEL E LUBRIFICANTES", "subgrupo": "Estoques", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.1.05.03.01.12": {"desc": "PECAS ALLIANCE PARTS", "subgrupo": "Estoques", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.1.05.05.01.01": {"desc": "MERCADORIAS BOUTIQUE", "subgrupo": "Estoques", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.1.99.01.01.08": {"desc": "C/CORRENTE DE CLIENTES-VEICULOS", "subgrupo": "Outros valores a receber de Longo Prazo", "grupo": "( -  ) OUTROS OPERACIONAIS", "codigo": "Ativo"}, "1.1.99.01.01.15": {"desc": "TRANSITORIAS DIVERSAS", "subgrupo": "Disponibilidades Operacionais", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Ativo"}, "1.2.01.01.01.02": {"desc": "CREDITOS DE ACIONISTAS/SOCIOS", "subgrupo": "Empréstimos à Sócios e Partes Relacionadas", "grupo": "( -  ) ENTRADA / RETIRADA DE SÓCIOS", "codigo": "Ativo"}, "1.2.01.01.02.02": {"desc": "ALAGOAS DIESEL S/A", "subgrupo": "Empréstimos à Sócios e Partes Relacionadas", "grupo": "( -  ) ENTRADA / RETIRADA DE SÓCIOS", "codigo": "Ativo"}, "1.2.01.01.02.08": {"desc": "NIVALDO JATOBA AGRO INDL LTDA", "subgrupo": "Empréstimos à Sócios e Partes Relacionadas", "grupo": "( -  ) ENTRADA / RETIRADA DE SÓCIOS", "codigo": "Ativo"}, "1.2.01.01.02.11": {"desc": "ARADISA-RENOVADORA DE PENEUS LTDA", "subgrupo": "Empréstimos à Sócios e Partes Relacionadas", "grupo": "( -  ) ENTRADA / RETIRADA DE SÓCIOS", "codigo": "Ativo"}, "1.2.01.03.01.08": {"desc": "DEPOSITOS JUDICIAIS - CAUSAS TRABALHISTA", "subgrupo": "Depósitos e Bloqueis Judiciais", "grupo": "( -  ) OUTROS OPERACIONAIS", "codigo": "Ativo"}, "1.2.01.03.01.12": {"desc": "BLOQUIO JUDICIAL SACADO", "subgrupo": "Depósitos e Bloqueis Judiciais", "grupo": "( -  ) OUTROS OPERACIONAIS", "codigo": "Ativo"}, "1.2.01.03.01.11": {"desc": "BLOQUEIO JUDICIAL", "subgrupo": "Depósitos e Bloqueis Judiciais", "grupo": "( -  ) OUTROS OPERACIONAIS", "codigo": "Ativo"}, "1.3.01.01.01.01": {"desc": "ARAPIRACA DIESEL LTDA.", "subgrupo": "Investimentos", "grupo": "( -  ) INVESTIMENTOS", "codigo": "Ativo"}, "1.3.01.01.01.02": {"desc": "AGIO S/INVESTIMENTO ARADISA", "subgrupo": "Investimentos", "grupo": "( -  ) INVESTIMENTOS", "codigo": "Ativo"}, "1.3.01.01.01.03": {"desc": "PARTC. PERM. O EMP. BANCO NACIONAL", "subgrupo": "Investimentos", "grupo": "( -  ) INVESTIMENTOS", "codigo": "Ativo"}, "1.3.01.01.01.04": {"desc": "ARDISA RENOVADORA DE PNEUS LTDA.", "subgrupo": "Investimentos", "grupo": "( -  ) INVESTIMENTOS", "codigo": "Ativo"}, "1.3.01.01.01.08": {"desc": "PARKS INFORMATICA S/A", "subgrupo": "Investimentos", "grupo": "( -  ) INVESTIMENTOS", "codigo": "Ativo"}, "1.3.01.01.09.02": {"desc": "PREDIOS", "subgrupo": "Investimentos", "grupo": "( -  ) INVESTIMENTOS", "codigo": "Ativo"}, "1.3.01.01.09.04": {"desc": "TERRENO LOTEAMENTO J.FERNANDES", "subgrupo": "Investimentos", "grupo": "( -  ) INVESTIMENTOS", "codigo": "Ativo"}, "1.3.01.01.09.06": {"desc": "TERRENO PARQUE DAS FLORES", "subgrupo": "Investimentos", "grupo": "( -  ) INVESTIMENTOS", "codigo": "Ativo"}, "1.3.01.01.09.07": {"desc": "TERRENO PORTO CALVO", "subgrupo": "Investimentos", "grupo": "( -  ) INVESTIMENTOS", "codigo": "Ativo"}, "1.3.01.01.09.08": {"desc": "CONSORCIO  SAVEIRO - 6324891", "subgrupo": "Investimentos", "grupo": "( -  ) INVESTIMENTOS", "codigo": "Ativo"}, "1.3.02.01.01.01": {"desc": "TERRENOS", "subgrupo": "Ativo Imobilizado", "grupo": "( -  ) CAPEX", "codigo": "Ativo"}, "1.3.02.01.01.02": {"desc": "EDIFICIOS E PREDIOS", "subgrupo": "Ativo Imobilizado", "grupo": "( -  ) CAPEX", "codigo": "Ativo"}, "1.3.02.01.01.03": {"desc": "INSTALACOES", "subgrupo": "Ativo Imobilizado", "grupo": "( -  ) CAPEX", "codigo": "Ativo"}, "1.3.02.01.01.04": {"desc": "MOVEIS E UTENSILIOS", "subgrupo": "Ativo Imobilizado", "grupo": "( -  ) CAPEX", "codigo": "Ativo"}, "1.3.02.01.01.05": {"desc": "VEICULOS", "subgrupo": "Ativo Imobilizado", "grupo": "( -  ) CAPEX", "codigo": "Ativo"}, "1.3.02.01.01.06": {"desc": "MAQUINAS E EQUIPAMENTOS", "subgrupo": "Ativo Imobilizado", "grupo": "( -  ) CAPEX", "codigo": "Ativo"}, "1.3.02.01.01.07": {"desc": "FERRAMENTAS", "subgrupo": "Ativo Imobilizado", "grupo": "( -  ) CAPEX", "codigo": "Ativo"}, "1.3.02.01.01.08": {"desc": "EQUIPAMENTOS DE INFORMATICA", "subgrupo": "Ativo Imobilizado", "grupo": "( -  ) CAPEX", "codigo": "Ativo"}, "1.3.02.01.01.10": {"desc": "DIREITO DE USO DE LINHA TELEFONICA", "subgrupo": "Ativo Imobilizado", "grupo": "( -  ) CAPEX", "codigo": "Ativo"}, "1.3.02.01.01.11": {"desc": "MARCAS E PATENTES", "subgrupo": "Ativo Imobilizado", "grupo": "( -  ) CAPEX", "codigo": "Ativo"}, "1.3.02.01.01.14": {"desc": "REFORMAS EM EDIF.E PREDIOS", "subgrupo": "Ativo Imobilizado", "grupo": "( -  ) CAPEX", "codigo": "Ativo"}, "1.3.02.01.01.25": {"desc": "BENFEITORIA EM MOVEIS", "subgrupo": "Ativo Imobilizado", "grupo": "( -  ) CAPEX", "codigo": "Ativo"}, "1.3.02.01.01.26": {"desc": "ATIVO IMOBILIZADO TRANSITORIA", "subgrupo": "Ativo Imobilizado", "grupo": "( -  ) CAPEX", "codigo": "Ativo"}, "1.3.02.09.09.02": {"desc": "(-) EDIFICIOS E PREDIOS", "subgrupo": "Ativo Imobilizado", "grupo": "( -  ) CAPEX", "codigo": "Ativo"}, "1.3.02.09.09.03": {"desc": "(-) INSTALACOES", "subgrupo": "Ativo Imobilizado", "grupo": "( -  ) CAPEX", "codigo": "Ativo"}, "1.3.02.09.09.04": {"desc": "(-) MOVEIS E UTENSILIOS", "subgrupo": "Ativo Imobilizado", "grupo": "( -  ) CAPEX", "codigo": "Ativo"}, "1.3.02.09.09.05": {"desc": "(-) VEICULOS", "subgrupo": "Ativo Imobilizado", "grupo": "( -  ) CAPEX", "codigo": "Ativo"}, "1.3.02.09.09.06": {"desc": "(-) MAQUINAS E EQUIPAMENTOS", "subgrupo": "Ativo Imobilizado", "grupo": "( -  ) CAPEX", "codigo": "Ativo"}, "1.3.02.09.09.07": {"desc": "(-) FERRAMENTAS", "subgrupo": "Ativo Imobilizado", "grupo": "( -  ) CAPEX", "codigo": "Ativo"}, "1.3.02.09.09.08": {"desc": "(-) EQUIPAMENTOS DE INFORMATICA", "subgrupo": "Ativo Imobilizado", "grupo": "( -  ) CAPEX", "codigo": "Ativo"}, "1.3.02.09.09.09": {"desc": "(-) BENS EM OPERACAO", "subgrupo": "Ativo Imobilizado", "grupo": "( -  ) CAPEX", "codigo": "Ativo"}, "1.3.03.01.01.01": {"desc": "CONSTRUCOES EM ANDAMENTO - NOVA SEDE", "subgrupo": "Ativo Imobilizado", "grupo": "( -  ) CAPEX", "codigo": "Ativo"}, "1.3.03.01.02.01": {"desc": "(-) DEPRECIAÇÕES DE CONSTRUÇÕES EM ANDAM", "subgrupo": "Ativo Imobilizado", "grupo": "( -  ) CAPEX", "codigo": "Ativo"}, "2.1.01.03.02.03": {"desc": "BANCO DAYCOVAL S/A", "subgrupo": "Empréstimo e Financiamentos CP", "grupo": "( -  ) EMPRÉSTIMOS E FINANCIAMENTOS", "codigo": "Passivo"}, "2.1.01.03.02.04": {"desc": "DAYCOVAL LIMITE ESPECIAL", "subgrupo": "Empréstimo e Financiamentos CP", "grupo": "( -  ) EMPRÉSTIMOS E FINANCIAMENTOS", "codigo": "Passivo"}, "2.1.02.01.01.01": {"desc": "MBB - VEICULOS", "subgrupo": "Fornecedores", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Passivo"}, "2.1.02.01.01.02": {"desc": "MBB - PECAS", "subgrupo": "Fornecedores", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Passivo"}, "2.1.02.01.01.04": {"desc": "VLR. EFETIVAR E PENDENTES", "subgrupo": "Fornecedores", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Passivo"}, "2.1.02.09.09.01": {"desc": "FORNECEDORES DIVERSOS", "subgrupo": "Fornecedores", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Passivo"}, "2.1.03.01.01.09": {"desc": "PLANO DE SAUDE HAPVIDA", "subgrupo": "Outras Contas a Pagar", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Passivo"}, "2.1.03.01.01.07": {"desc": "PLANO DE SAUDE BRADESCO", "subgrupo": "Outras Contas a Pagar", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Passivo"}, "2.1.03.01.01.20": {"desc": "PLANO DE SAUDE UNIMED", "subgrupo": "Outras Contas a Pagar", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Passivo"}, "2.1.03.01.01.12": {"desc": "CONVENIO ODONTOLOGICO", "subgrupo": "Outras Contas a Pagar", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Passivo"}, "2.1.04.01.01.01": {"desc": "ADIANTAMENTOS DE CLIENTES", "subgrupo": "Recebimento antecipado de Clientes", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Passivo"}, "2.1.05.01.01.01": {"desc": "HONORARIOS E PRO-LABORES", "subgrupo": "Obrigações trabalhistas", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Passivo"}, "2.1.05.01.02.01": {"desc": "SALARIOS A PAGAR", "subgrupo": "Obrigações trabalhistas", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Passivo"}, "2.1.05.01.02.02": {"desc": "PENSAO ALIMENTICIA", "subgrupo": "Obrigações trabalhistas", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Passivo"}, "2.1.05.01.02.03": {"desc": "RESCISAO DE CONTRATO", "subgrupo": "Obrigações trabalhistas", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Passivo"}, "2.1.05.01.03.01": {"desc": "INSS A PAGAR", "subgrupo": "Obrigações trabalhistas", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Passivo"}, "2.1.05.01.03.02": {"desc": "RETENÇÃO INSS P.J.", "subgrupo": "Obrigações trabalhistas", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Passivo"}, "2.1.05.01.03.03": {"desc": "FGTS A RECOLHER", "subgrupo": "Obrigações trabalhistas", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Passivo"}, "2.1.05.01.04.02": {"desc": "CONTRIBUICAO SINDICAL E ASSISTENCIAL", "subgrupo": "Obrigações trabalhistas", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Passivo"}, "2.1.05.01.04.01": {"desc": "IRRF A RECOLHER", "subgrupo": "Obrigações trabalhistas", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Passivo"}, "2.1.05.01.06.01": {"desc": "PROVISAO PARA FERIAS", "subgrupo": "Obrigações trabalhistas", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Passivo"}, "2.1.05.01.06.02": {"desc": "PROV.INSS SOBRE FERIAS", "subgrupo": "Obrigações trabalhistas", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Passivo"}, "2.1.05.01.06.03": {"desc": "PROV.FGTS SOBRE FERIAS", "subgrupo": "Obrigações trabalhistas", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Passivo"}, "2.1.05.01.07.01": {"desc": "PROVISOES PARA 13º SALARIO", "subgrupo": "Obrigações trabalhistas", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Passivo"}, "2.1.05.01.07.02": {"desc": "PROV.INSS SOBRE 13º SALARIO", "subgrupo": "Obrigações trabalhistas", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Passivo"}, "2.1.05.01.07.03": {"desc": "PROV.FGTS SOBRE 13º SALARIO", "subgrupo": "Obrigações trabalhistas", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Passivo"}, "2.1.06.01.01.01": {"desc": "ICMS A RECOLHER", "subgrupo": "Obrigações tributárias CP", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Passivo"}, "2.1.06.01.01.03": {"desc": "ICMS SUBSTITUICAO TRIBUTARIA", "subgrupo": "Obrigações tributárias CP", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Passivo"}, "2.1.06.01.01.06": {"desc": "ICMS ANTECIPADO LEI 2.474/2004", "subgrupo": "Obrigações tributárias CP", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Passivo"}, "2.1.06.01.01.07": {"desc": "ICMS DIFAL A RECOLHER", "subgrupo": "Obrigações tributárias CP", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Passivo"}, "2.1.06.01.02.01": {"desc": "ISS A PAGAR", "subgrupo": "Obrigações tributárias CP", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Passivo"}, "2.1.06.01.03.01": {"desc": "PIS A RECOLHER", "subgrupo": "Obrigações tributárias CP", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Passivo"}, "2.1.06.01.04.01": {"desc": "COFINS A RECOLHER", "subgrupo": "Obrigações tributárias CP", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Passivo"}, "2.1.06.01.04.02": {"desc": "RETENCAO - MP 135", "subgrupo": "Obrigações tributárias CP", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Passivo"}, "2.1.06.01.04.03": {"desc": "ISS RETIDO", "subgrupo": "Obrigações tributárias CP", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Passivo"}, "2.1.06.02.01.01": {"desc": "IMPOSTO DE RENDA - PJ", "subgrupo": "Obrigações tributárias CP", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Passivo"}, "2.1.06.02.02.01": {"desc": "CONTRIBUICAO SOCIAL S/LUCROS", "subgrupo": "Obrigações tributárias CP", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Passivo"}, "2.1.06.02.03.01": {"desc": "IRRF DE TERCEIROS", "subgrupo": "Obrigações tributárias CP", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Passivo"}, "2.2.01.01.01.01": {"desc": "NIVALDO JATOBA", "subgrupo": "Empréstimos de Sócios e Partes Relacionadas", "grupo": "( -  ) ENTRADA / RETIRADA DE SÓCIOS", "codigo": "Passivo"}, "2.2.01.01.01.10": {"desc": "ROSEANE CASTRO JATOBA", "subgrupo": "Empréstimos de Sócios e Partes Relacionadas", "grupo": "( -  ) ENTRADA / RETIRADA DE SÓCIOS", "codigo": "Passivo"}, "2.2.01.01.01.06": {"desc": "JOAO CASTRO JATOBA", "subgrupo": "Empréstimos de Sócios e Partes Relacionadas", "grupo": "( -  ) ENTRADA / RETIRADA DE SÓCIOS", "codigo": "Passivo"}, "2.2.01.01.01.08": {"desc": "GENILDA CASTRO JATOBA REMIGIO", "subgrupo": "Empréstimos de Sócios e Partes Relacionadas", "grupo": "( -  ) ENTRADA / RETIRADA DE SÓCIOS", "codigo": "Passivo"}, "2.2.01.01.01.09": {"desc": "MARIA DE L. CASTRO JATOBA", "subgrupo": "Empréstimos de Sócios e Partes Relacionadas", "grupo": "( -  ) ENTRADA / RETIRADA DE SÓCIOS", "codigo": "Passivo"}, "2.2.01.01.02.01": {"desc": "ARADISA-ARAPIRACA DIESEL LTDA.", "subgrupo": "Empréstimos de Sócios e Partes Relacionadas", "grupo": "( -  ) ENTRADA / RETIRADA DE SÓCIOS", "codigo": "Passivo"}, "2.2.01.01.02.02": {"desc": "ARDISA RENOVADORA DE PNEUS LTDA.", "subgrupo": "Empréstimos de Sócios e Partes Relacionadas", "grupo": "( -  ) ENTRADA / RETIRADA DE SÓCIOS", "codigo": "Passivo"}, "2.2.01.01.02.03": {"desc": "NIVALDO JATOBA EMPREENDIMENTOS", "subgrupo": "Empréstimos de Sócios e Partes Relacionadas", "grupo": "( -  ) ENTRADA / RETIRADA DE SÓCIOS", "codigo": "Passivo"}, "2.2.01.01.02.07": {"desc": "ALAGOAS DIESEL S/A", "subgrupo": "Empréstimos de Sócios e Partes Relacionadas", "grupo": "( -  ) ENTRADA / RETIRADA DE SÓCIOS", "codigo": "Passivo"}, "2.2.01.01.02.10": {"desc": "AUTOCHINA VEICULOS LTDA", "subgrupo": "Empréstimos de Sócios e Partes Relacionadas", "grupo": "( -  ) ENTRADA / RETIRADA DE SÓCIOS", "codigo": "Passivo"}, "2.2.01.01.02.04": {"desc": "AUTOFORTE VEICULOS LTDA", "subgrupo": "Empréstimos de Sócios e Partes Relacionadas", "grupo": "( -  ) ENTRADA / RETIRADA DE SÓCIOS", "codigo": "Passivo"}, "2.2.01.01.02.09": {"desc": "GUNGA EMPREENDIMENTOS TURISTICOS LTDA", "subgrupo": "Empréstimos de Sócios e Partes Relacionadas", "grupo": "( -  ) ENTRADA / RETIRADA DE SÓCIOS", "codigo": "Passivo"}, "2.2.01.04.01.10": {"desc": "IRRF PARCELADO", "subgrupo": "Obrigações tributárias de Longo Prazo", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Passivo"}, "2.2.01.04.01.02": {"desc": "PIS/COFINS PARCELADOS", "subgrupo": "Obrigações tributárias de Longo Prazo", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Passivo"}, "2.2.01.04.01.04": {"desc": "PARCELAMENTO LEI 11.491", "subgrupo": "Obrigações tributárias de Longo Prazo", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Passivo"}, "2.2.01.04.01.05": {"desc": "PARCELAMENTO LEI 12.996/2014", "subgrupo": "Obrigações tributárias de Longo Prazo", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Passivo"}, "2.2.01.04.01.06": {"desc": "PARCELAMENTO PREVIDENCIARIO", "subgrupo": "Obrigações tributárias de Longo Prazo", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Passivo"}, "2.2.01.04.01.07": {"desc": "PARCELAMENTO ICMS", "subgrupo": "Obrigações tributárias de Longo Prazo", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Passivo"}, "2.2.01.04.01.08": {"desc": "QUITA PGFN 70% PREEVIDENCIA", "subgrupo": "Obrigações tributárias de Longo Prazo", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Passivo"}, "2.2.01.04.01.09": {"desc": "PARCELAMENTO DO ISS", "subgrupo": "Obrigações tributárias de Longo Prazo", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Passivo"}, "2.2.01.04.01.11": {"desc": "QUITA PGFN 70% DEMAIS DEBITOS", "subgrupo": "Obrigações tributárias de Longo Prazo", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Passivo"}, "2.2.01.04.01.12": {"desc": "PARCELAMENTO QUITA PGFN 70% DEMAIS DEBIT", "subgrupo": "Obrigações tributárias de Longo Prazo", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Passivo"}, "2.2.01.04.01.13": {"desc": "PARCELAMENTO QUITA PGFN 70% PREVIDENCIA", "subgrupo": "Obrigações tributárias de Longo Prazo", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Passivo"}, "2.2.01.04.01.14": {"desc": "PARCELAMENTO LITIGIO ZERO", "subgrupo": "Obrigações tributárias de Longo Prazo", "grupo": "( -  ) NECESSIDADE DE CAPITAL DE GIRO", "codigo": "Passivo"}, "2.2.01.05.01.01": {"desc": "CREDORES TRABALHISTAS", "subgrupo": "Empréstimo e Financiamentos LP", "grupo": "( -  ) EMPRÉSTIMOS E FINANCIAMENTOS", "codigo": "Passivo"}, "2.2.01.05.03.01": {"desc": "CREDORES COM QUIROGRAFARIOS", "subgrupo": "Empréstimo e Financiamentos LP", "grupo": "( -  ) EMPRÉSTIMOS E FINANCIAMENTOS", "codigo": "Passivo"}, "2.2.01.05.04.01": {"desc": "CREDORES MICRO E PEQUENAS EMPRESAS E EPP", "subgrupo": "Empréstimo e Financiamentos LP", "grupo": "( -  ) EMPRÉSTIMOS E FINANCIAMENTOS", "codigo": "Passivo"}, "2.4.01.01.01.02": {"desc": "JOAO CASTRO JATOBA", "subgrupo": "Capital Social", "grupo": "( -  ) NÃO OPERACIONAL", "codigo": "Passivo"}, "2.4.01.01.01.04": {"desc": "ALAGOAS DIESEL S/A", "subgrupo": "Capital Social", "grupo": "( -  ) NÃO OPERACIONAL", "codigo": "Passivo"}, "2.4.01.01.01.01": {"desc": "NIVALDO JATOBA", "subgrupo": "Capital Social", "grupo": "( -  ) NÃO OPERACIONAL", "codigo": "Passivo"}, "2.4.02.01.01.01": {"desc": "C. M DO CAPITAL REALIZADO", "subgrupo": "Reservas de Lucros", "grupo": "( -  ) NÃO OPERACIONAL", "codigo": "Passivo"}, "2.4.02.01.01.02": {"desc": "APLICACAO EM INCENTIVOS FISCAIS", "subgrupo": "Reservas de Lucros", "grupo": "( -  ) NÃO OPERACIONAL", "codigo": "Passivo"}, "2.4.03.01.01.01": {"desc": "PREJUIZO ACUMULADO", "subgrupo": "Reservas de Lucros", "grupo": "( -  ) NÃO OPERACIONAL", "codigo": "Passivo"}, "2.4.03.01.01.02": {"desc": "PREJUIZOS ACUMULADOS EXERCICIO FUNDO", "subgrupo": "Reservas de Lucros", "grupo": "( -  ) NÃO OPERACIONAL", "codigo": "Passivo"}, "2.4.03.01.01.04": {"desc": "LUCRO DO EXERCICIO", "subgrupo": "Resultado do Período", "grupo": null, "codigo": "Passivo"}, "2.4.03.01.02.16": {"desc": "LUCRO  DE  2006", "subgrupo": "Reservas de Lucros", "grupo": "( -  ) NÃO OPERACIONAL", "codigo": "Passivo"}, "3.1.01.01.99.01": {"desc": "CAMINHÕES", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.1.01.01.99.36": {"desc": "ONIBUS CHASSIS/PLATAFORMA MB", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.1.02.01.01.01": {"desc": "CAMINHOES", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.1.03.01.99.01": {"desc": "PECAS, AGREGADOS, MOTORES MB NOVOS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.1.03.01.99.06": {"desc": "OUTRAS MERCADORIAS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.1.03.01.99.09": {"desc": "COMBUSTIVEIS E LUBRIFICANTES", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.1.03.01.99.12": {"desc": "PECAS,AGREGADOS SPRINTER", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.1.03.01.99.13": {"desc": "PECAS ALLIANCE PARTS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.1.03.03.99.01": {"desc": "PECAS, AGREGADOS, MOTORES MB NOVOS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.1.03.03.99.02": {"desc": "PECAS,AGREGADOS, MOT SPRINTER", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.1.03.04.99.01": {"desc": "PECAS, AGREGADOS, MOTORES MB NOVOS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.1.03.05.99.01": {"desc": "MERCADORIA S  BOUTIQUE", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.1.04.01.99.01": {"desc": "SERVICOS AOS CLIENTES MB", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.1.04.01.99.04": {"desc": "SERVICOS INTERNOS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.1.04.02.99.04": {"desc": "SERVICOS DE REVISAO MB", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.1.04.02.99.05": {"desc": "SERVICOS DE GARANTIA MB", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.1.04.03.99.08": {"desc": "SERVICOS DE MECANICA DE TERCEIROS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.2.01.01.99.01": {"desc": "BONIFICACOES/COMISSOES", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.2.01.01.99.02": {"desc": "COMISSOES SOBRE SEGUROS E OUTROS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.2.01.01.99.03": {"desc": "BONIFICACOES/COMISSOES-CAMINHOES MEDIOS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.2.01.01.99.05": {"desc": "BONIF/COMISSAO CAM  SEMIPESADOS FADIRETO", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.2.01.01.99.06": {"desc": "BONIF/COM STARCLASS LEVES", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.2.01.01.99.07": {"desc": "BONIFICACOES/COMISSOES FADIRETO ONIBUS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.2.01.01.99.08": {"desc": "BONIF/COMISSÃO FADIRETO VANS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.2.01.01.99.09": {"desc": "OUTRAS BONIFICACOES E COMISSÕESLEVES", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.2.01.01.99.11": {"desc": "BONIF/COMISSAO CAM LEVES FADIRETO", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.2.01.01.99.12": {"desc": "BONIF/COMISSAO CAM MEDIOS FADIRETO", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.2.01.01.99.13": {"desc": "BONIF/COMISSAO CAM EXTRAPESADOS FADIRETO", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.2.01.01.99.15": {"desc": "BONIF/COMISSOES-COMPRAS CAM SEMIPESADOS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.2.01.01.99.16": {"desc": "BONIF/COMISSOES-COMPRAS CAM EXTRAPESADOS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.2.01.01.99.17": {"desc": "BONIFICACOES/COMISSOES-COMPRAS CAM LEVES", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.2.01.01.99.18": {"desc": "BONIF DE RETIRADA DE ONIBUS CONCESSAO", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.2.01.01.99.20": {"desc": "OUTRAS BONIFICAÇÕES E COMISSOES MEDIOS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.2.01.01.99.21": {"desc": "BONIFICAÇÃO BONUS VAREJO SEMIPESADO", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.2.01.01.99.22": {"desc": "BONIFICAÇÃO BONUS VAREJO EXTRA PESADO", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.2.01.01.99.23": {"desc": "BONIFICAÇÃO BONUS VAREJO LEVE", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.2.01.01.99.24": {"desc": " BONIFICAÇÃO BONUS VAREJO MEDIOS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.2.01.01.99.25": {"desc": "BONUS STAR CLASS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.2.01.01.99.33": {"desc": "VEICULOS CAMINHOES E ONIBUS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.2.01.09.99.02": {"desc": "RECUP/PERDA DESPESAS DE GARANTIA E REVI", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.2.01.09.99.03": {"desc": "RECUPERACAO DESP. ANTERIORES", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.3.01.01.99.24": {"desc": "ICMS DIFAL", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.3.01.01.99.25": {"desc": "DEV. VEICULOS USADOS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.3.01.01.99.05": {"desc": "ICMS - SPRINTER", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.3.01.02.01.01": {"desc": "(-) VENDAS CANCELADAS E DEVOL. DE VENDAS - VEÍCULOS 0KM", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.3.01.02.01.02": {"desc": "(-) ICMS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.3.03.01.99.01": {"desc": "DEVOLUCOES DE VENDAS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.3.03.01.99.03": {"desc": "ICMS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.3.03.01.99.04": {"desc": "PIS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.3.03.01.99.05": {"desc": "COFINS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.3.03.04.99.01": {"desc": "DEVOLUCOES DE RECOMPRAS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.3.03.04.99.03": {"desc": "ICMS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.3.04.01.99.04": {"desc": "PIS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.3.04.01.99.05": {"desc": "COFINS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.3.04.01.99.06": {"desc": "ISS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.4.01.01.99.05": {"desc": "DED REC BONIF. E COM. CAM EXTRAPESADOS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.4.01.01.99.06": {"desc": "DEDUC BONIF/COMISSOES FADIRETO CAM LEVES", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.4.01.01.99.07": {"desc": "DED REC BONIF. E COMISSOES SPRINTER", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.4.01.01.99.09": {"desc": "DEDUC BONIF/COMISSOES FADIRETO ONIBUS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.4.01.01.99.10": {"desc": "DEDUC BONIF/COMISSOES FADIRETO VANS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.4.01.01.99.11": {"desc": "DED BONIF/COMISSOES FADIR CAM SEMIPESADO", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.4.01.01.99.12": {"desc": "DEDUC BONIF/COMPRAS CAM MEDIOS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.6.01.01.99.02": {"desc": "FUNDO - RETIRADA DE PECAS MB", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.6.01.01.99.03": {"desc": "RECUPERAÇÃO  DE DESPESA", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.6.01.09.99.03": {"desc": "JUROS ATIVOS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.6.01.09.99.04": {"desc": "DESCONTOS OBTIDOS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.7.01.01.99.05": {"desc": "OUTRAS RECEITAS OPERACIONAIS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.1.01.01.99.01": {"desc": "CAMINHÕES", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.1.01.01.99.36": {"desc": "ONIBUS CHASSIS/PLATAFORMA MB", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.1.01.02.01.01": {"desc": "CAMINHOES", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.1.03.01.99.01": {"desc": "PECAS, AGREGADOS, MOTORES MB NOVOS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.1.03.01.99.06": {"desc": "OUTRAS MERCADORIAS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.1.03.01.99.09": {"desc": "COMBUSTIVEIS E LUBRIFICANTES", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.1.03.01.99.11": {"desc": "PECAS,AGREGADOS SPRINTER", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.1.03.01.99.12": {"desc": "PECAS ALLIANCE PARTS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.1.03.03.99.01": {"desc": "PECAS, AGREGADOS, MOTORES MB NOVOS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.1.03.03.99.02": {"desc": "PECAS,AGREGADOS,MOT SPRINTER", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.1.03.04.99.01": {"desc": "PECAS, AGREGADOS, MOTORES MB NOVOS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.1.03.05.99.01": {"desc": "MERCADORIAS BOUTIQUE", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.1.04.03.99.08": {"desc": "SERVICOS DE MECANICA DE TERCEIROS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.3.01.01.99.01": {"desc": "COMISSOES/DSR  E PREMIOS DE VENDAS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.3.01.01.99.02": {"desc": "ENCARGOS DE PREVIDENCIA SOCIAL", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.3.01.01.99.03": {"desc": "ENCARGOS FGTS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.3.01.01.99.05": {"desc": "COMISSOES S/VENDAS CAMINHOES", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.3.01.01.99.07": {"desc": "COMISSOES S/VENDAS SPRINTER", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.3.01.01.99.11": {"desc": "INSS COMISSAO CAMINHOES", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.3.01.01.99.12": {"desc": "FGTS COMISSAO CAMINHOES", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.3.01.01.99.13": {"desc": "INSS COMISSOES SPRINTER", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.3.01.01.99.14": {"desc": "FGTS SOBRE COMISSOES SPRINTER", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.3.01.01.99.20": {"desc": "FGTS SOBRE COMISSOES SPRINTER", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.3.01.02.99.01": {"desc": "COMISSOES  E REPRESENTACOES S/VENDAS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.3.01.03.99.01": {"desc": "REVISOES DE ENTREGA", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.3.01.03.99.09": {"desc": "OUTRAS DESPESAS DE VENDAS I", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.3.01.03.99.10": {"desc": "COMBUSTIVEL", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.3.01.03.99.13": {"desc": "COMBUSTIVEL VANS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.3.01.04.99.04": {"desc": "ESTORNO DE GARANTIA E REVISAO", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.3.01.04.99.05": {"desc": "CORTESIAS COMERCIAIS ", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.3.01.04.99.15": {"desc": "IPVA, LICENCIAMENTO E SEGURO DPVAT", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.3.01.04.99.16": {"desc": "FRETES", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.3.01.04.99.17": {"desc": "CONTRATO DE MANUTENÇÃO", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.3.01.04.99.18": {"desc": "LAVAGEM VEICULOS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.01.99.01": {"desc": "BRINDES E PRESENTES", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.01.99.02": {"desc": "MATERIAIS DE DIVULGACAO", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.01.99.05": {"desc": "FEIRAS, EXPOSICOES E EVENTOS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.02.99.02": {"desc": "ORDENADOS E SALARIOS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.02.99.06": {"desc": "INSS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.02.99.07": {"desc": "FGTS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.02.99.08": {"desc": "FERIAS E ENCARGOS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.02.99.09": {"desc": "13O. SALARIOS E ENCARGOS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.02.99.10": {"desc": "VALE TRANSPORTE", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.02.99.11": {"desc": "VALE REFEICAO", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.02.99.12": {"desc": "ASSISTENCIA MEDICA", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.02.99.14": {"desc": "CURSOS E TREINAMENTOS PROFISSIONAIS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.02.99.15": {"desc": "UNIFORMES E EQUIPAMENTOS DE PROTECAO", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.02.99.16": {"desc": "AVISOS PREVIOS E INDENIZACOES", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.02.99.19": {"desc": "OUTRAS DESPESAS COM PESSOAL", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.02.99.22": {"desc": "MULTA FGTS 40%", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.02.99.27": {"desc": "CURSOS E TREINAMENTOS FABRICA", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.1.03.04.99.02": {"desc": "PECAS, AGREGADOS, MOT SPRINTER", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.03.99.02": {"desc": "LOCACOES DE MAQUINAS E EQUIPAMENTOS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.03.99.04": {"desc": "MATERIAIS DE ESCRIT., IMPRESSOS E REPROD", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.03.99.05": {"desc": "MANUTENÇÃO DE PRÉDIOS E CONSERV RATEIO", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.03.99.06": {"desc": "IMPOSTOS E TAXAS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.03.99.07": {"desc": "AGUA E ESGOTO, LUZ E FORCA", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.03.99.08": {"desc": "MALOTES, DESPACHOS, CARTAS E TELEGRAMAS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.03.99.12": {"desc": "CONDUCOES E REFEICOES", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.03.99.13": {"desc": "MANUNTENCAO DE VEICULOS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.03.99.14": {"desc": "VIAGENS E ESTADIAS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.03.99.17": {"desc": "BENS DURAVEIS NAO IMOBILIZADOS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.03.99.19": {"desc": "OUTRAS DESPESAS DE FUNCIONAMENTO", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.03.99.20": {"desc": "MANUTENCAO EM COMPUTADORES E SISTEMAS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.03.99.23": {"desc": "SERVICOS PROF.CONTRATADOS PJ", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.03.99.24": {"desc": "DESPESAS COM FRETES E CARRETOS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.03.99.25": {"desc": "CONTRIBUICOES E DONATIVOS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.03.99.30": {"desc": "MANUTENCAO DE VEICULO", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.03.99.33": {"desc": "SERVICOS PROF.CONTRATADOS PF", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.03.99.34": {"desc": "HONORARIOS ADVOCATICIOS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.03.99.35": {"desc": "MATERIAL DE MANUTENCAO E CONSUMO", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.03.99.36": {"desc": "DESPESAS COM ASSOCIACAO DE CLASSE", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.03.99.38": {"desc": "IPTU", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.03.99.39": {"desc": "INSS SERVICOS PRESTADOS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.03.99.40": {"desc": "MANUTENÇÃO DE MAQUINAS E EQUIPAMENTOS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.03.99.41": {"desc": "TELEFONE E INTERNET RATEIO", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.03.99.42": {"desc": "ESTORNO DE BONIFICAÇÕES", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.03.99.43": {"desc": "DESPESAS INDEDUTIVEIS RATEIO", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.03.99.44": {"desc": "MATERIAIS DE LIMPEZA", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.03.99.45": {"desc": "PERDAS AVARIA", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.03.99.46": {"desc": "PREJUIZOS E PERDAS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.03.99.47": {"desc": "DESPESA DE REPRESENTAÇÃO", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.03.99.48": {"desc": "SEGURO CARROS/IMÓVEL/OUTROS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.03.99.50": {"desc": "SERVIÇO PROF CONTRATADOS LIMPEZA", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.03.99.51": {"desc": "SERVIÇO PROF CONTRATADOS SEGURANÇA", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.03.99.53": {"desc": "SERVIÇO PROF CONTRATADOS COLETA DE LIXO_x001F__x001F_", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.03.99.54": {"desc": "SERVIÇO PROF CONTRATADOS TI_x001F__x001F_", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.03.99.55": {"desc": "SERVIÇO PROF CONT SEG. DO TRABALHO_x001F__x001F_", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.03.99.56": {"desc": "SERVIÇO PROF CONTRATADOS MARKTING_x001F__x001F_", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.03.99.49": {"desc": "LOCAÇAO DE VEICULO", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.03.99.58": {"desc": "IPVA, LICENCIAMENTO E SEGURO DPVAT", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.01.99.01": {"desc": "BRINDES E PRESENTES", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.01.99.02": {"desc": "MATERIAIS DE DIVULGACAO", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.01.99.03": {"desc": "ANUNCIOS E PUBLICACOES", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.01.99.05": {"desc": "FEIRAS, EXPOSICOES E EVENTOS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.02.99.01": {"desc": "HONORARIOS E PRO-LABORES", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.02.99.02": {"desc": "ORDENADOS E SALARIOS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.02.99.06": {"desc": "INSS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.02.99.07": {"desc": "FGTS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.02.99.08": {"desc": "FERIAS E ENCARGOS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.02.99.09": {"desc": "13O. SALARIOS E ENCARGOS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.02.99.10": {"desc": "VALE TRANSPORTE", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.02.99.11": {"desc": "VALE REFEICAO", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.02.99.12": {"desc": "ASSISTENCIA MEDICA E ODONTOLOGIA", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.02.99.14": {"desc": "CURSOS E TREINAMENTOS PROFISSIONAIS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.02.99.15": {"desc": "UNIFORMES E EQUIPAMENTOS DE PROTECAO", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.02.99.16": {"desc": "AVISOS PREVIOS E INDENIZACOES", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.02.99.19": {"desc": "OUTRAS DESPESAS COM PESSOAL", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.03.99.02": {"desc": "LOCACOES DE MAQUINAS E EQUIPAMENTOS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.03.99.04": {"desc": "MATERIAIS DE ESCRIT., IMPRESSOS E REPROD", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.03.99.05": {"desc": "MANUTENÇÃO DE PREDIOS E CONSEV ADM", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.03.99.06": {"desc": "IMPOSTOS E TAXAS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.03.99.07": {"desc": "AGUA E ESGOTO, LUZ E FORCA", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.03.99.08": {"desc": "MALOTES, DESPACHOS, CARTAS E TELEGRAMAS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.03.99.09": {"desc": "TELEFONE E INTERNET", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.03.99.12": {"desc": "CONDUCOES E REFEICOES", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.03.99.13": {"desc": "MANUTENCOES DE VEICULOS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.03.99.14": {"desc": "VIAGENS E ESTADIAS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.03.99.15": {"desc": "COPA, COZINHA E REFEITORIO", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.03.99.17": {"desc": "BENS DURAVEIS NAO IMOBILIZADOS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.03.99.18": {"desc": "DEPRECIACOES E AMORTIZACOES", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.03.99.19": {"desc": "OUTRAS DESPESAS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.03.99.20": {"desc": "MANUTENCAO EM COMPUTADORES E SISTEMAS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.03.99.21": {"desc": "DESPESAS LEGAIS E JUDICIAIS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.03.99.22": {"desc": "DESPESAS COM ASSOCIACOES DE CLASSES", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.03.99.23": {"desc": "SERVICOS PROF.CONTRATADOS PJ", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.03.99.24": {"desc": "DESPESAS COM FRETES E CARRETOS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.03.99.25": {"desc": "CONTRIBUICOES E DONATIVOS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.03.99.27": {"desc": "RECEPCOES E FESTIVIDADES", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.03.99.28": {"desc": "DESPESAS INDEDUTIVEIS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.03.99.31": {"desc": "COMBUSTIVEL", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.03.99.33": {"desc": "DESPESAS COM MULTAS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.03.99.34": {"desc": "XEROX RECONH FIRMA", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.03.99.35": {"desc": "DESP.HONORARIO ADVOCATICIO", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.03.99.37": {"desc": "SERVICOS PROF.CONTRATOS PF", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.03.99.39": {"desc": "DESPESAS STARCLASS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.03.99.41": {"desc": "INSS SOBRE PREST.SERVICO", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.03.99.42": {"desc": "MATERIAL PARA MANUTENCA E CONSUMO", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.03.99.43": {"desc": "PREJUIZOS E PERDAS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.03.99.44": {"desc": "IPTU", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.03.99.45": {"desc": "MANUT MAQUINAS E EQUIP ADM", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.03.99.46": {"desc": "SEGURO CARROS/IMÓVEL/OUTROS - ADM", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.03.99.47": {"desc": "LOCAÇÃO DE VEICULO", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.03.99.48": {"desc": "SERVIÇO PROF CONTRADADOS LIMPEZA", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.03.99.49": {"desc": "SERVIÇO PROF CONTRATADOS SEGURANÇA", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.03.99.50": {"desc": "SERVIÇO PROF CONTRATADOS CONSULTORIA", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.03.99.51": {"desc": "SERVIÇO DE PROF CONTRATADOS COLETA DE LIXO", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.03.99.52": {"desc": "SERVIÇO PROF CONTRATADOS TI_x001F__x001F_", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.03.99.53": {"desc": "SERVIÇO PROF CONTRATADOS SEG. DO TRABALHO_x001F__x001F_", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.03.99.54": {"desc": "SERVIÇO PROF CONTRATADOS MARKTING_x001F__x001F_", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.03.99.55": {"desc": "SERVIÇO PROF CONTRATADOS CONTABILIDADE_x001F__x001F_", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.03.99.56": {"desc": "IPVA, LICENCIAMENTO E SEGURO DPVAT", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.6.01.05.99.04": {"desc": "TAXAS DE CARTAO DE CREDITO", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.6.01.05.99.05": {"desc": "DESCONTOS CONCEDIDOS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.6.01.05.99.06": {"desc": "ENCARGOS CONTA BANCARIA", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.6.01.09.99.03": {"desc": "JUROS PASSIVOS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.6.01.09.99.05": {"desc": "IOF", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.02.99.22": {"desc": "MULTA FGTS 40%", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "5.1.01.01.99.02": {"desc": "ORDENADOS E SALARIOS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "5.1.01.01.99.06": {"desc": "INSS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "5.1.01.01.99.07": {"desc": "FGTS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "5.1.01.01.99.08": {"desc": "FERIAS E ENCARGOS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "5.1.01.01.99.09": {"desc": "13O. SALARIOS E ENCARGOS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "5.1.01.01.99.10": {"desc": "VALE TRANSPORTE", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "5.1.01.01.99.11": {"desc": "VALE REFEICAO", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "5.1.01.01.99.12": {"desc": "ASSISTENCIA MEDICA", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "5.1.01.01.99.14": {"desc": "CURSOS E TREINAMENTOS PROFISSIONAIS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "5.1.01.01.99.15": {"desc": "UNIFORMES, ROUPAS E EQUIP DE PROTECAO", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "5.1.01.01.99.19": {"desc": "OUTRAS DESPESAS COM PESSOAL", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "5.1.01.01.99.26": {"desc": "CURSOS E TREINAMENTOS FABRICA", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "5.1.01.04.99.02": {"desc": "LOCACOES DE MAQUINAS E EQUIPAMENTOS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "5.1.01.04.99.05": {"desc": "MATERIAL DE LIMPEZA E CONSERVAÇÃO", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "5.1.01.04.99.06": {"desc": "IMPOSTOS E TAXAS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "5.1.01.04.99.12": {"desc": "CONDUCOES E REFEICOES", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "5.1.01.04.99.13": {"desc": "MANUTENCOES DE VEICULOS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "5.1.01.04.99.17": {"desc": "BENS DURAVEIS NAO IMOBILIZADOS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "5.1.01.04.99.19": {"desc": "MATERIAIS DE CONSUMO", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "5.1.01.04.99.21": {"desc": "MANUTENCAO, REPARO E MATERIAIS E CONSER", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "5.1.01.04.99.25": {"desc": "SERVIÇO PROF CONTRATADOS SEG TRABALHO", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "5.1.01.01.99.22": {"desc": "MULTA FGTS 40%", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "5.1.01.04.99.18": {"desc": "DEPRECIACOES E AMORTIZACOES", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.2.01.01.99.26": {"desc": "BONUS VAREJO VANS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.03.99.18": {"desc": "DEPRECIACOES E AMORTIZACOES", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.2.01.01.99.19": {"desc": "BONIFICAÇÕES STAR CLASS MEDIOS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.2.01.01.99.27": {"desc": "BONUS STARCLESS SEMI PESADO", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.2.01.01.99.28": {"desc": "BONUS STARCLESS EXTRA PESADO", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.2.01.01.99.29": {"desc": "BONUS STARCLESS FADIRETO EXTRA PESADO", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.2.01.01.99.30": {"desc": "BONUS STARCLESS FADIRETO MEDIO", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.2.01.01.99.31": {"desc": "BONUS STARCLESS FADIRETO  LEVE", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.03.99.57": {"desc": "IDENTIDADE CORPORATIVA", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "5.1.01.01.99.16": {"desc": "AVISOS PREVIOS E INDENIZACOES", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.01.99.04": {"desc": "VEICULACOES DE PROPAGANDAS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "5.1.01.04.99.14": {"desc": "VIAGENS E ESTADIAS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.6.01.06.99.02": {"desc": "MULTAS POR INFRACOES FISCAIS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "5.1.01.03.99.19": {"desc": "MATERIAL CONSUMO DIVERSOS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "5.1.01.04.99.23": {"desc": "FRETES E CARRETOS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.03.99.28": {"desc": "RECEPCOES E FESTIVIDADES", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.03.99.52": {"desc": "SERVIÇO PROF CONTRATADOS CONSULTORIA", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.02.99.26": {"desc": "CURSOS E TREINAMENTOS FABRICA", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.01.99.03": {"desc": "ANUNCIOS E PUBLICACOES", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.5.01.03.99.58": {"desc": "DESPESA DE REPRESENTAÇÃO", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.3.04.01.99.02": {"desc": "ABATIMENTOS E DESCONTOS DE VENDAS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.4.01.01.99.01": {"desc": "(-) DEDUÇÕES S/ BONUS E COMISSÕES", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.3.01.04.99.19": {"desc": "CONTRATO DE MANUTENÇÃO", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.03.99.57": {"desc": "SERVIÇOS DE CONTABILIDADE", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.7.01.01.99.04": {"desc": "FRACIONAMENTO DE PREÇOS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.2.01.01.99.34": {"desc": "COMISSAO PLANO DE MANUTENÇÃO", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "4.4.01.03.99.15": {"desc": "COPA, COZINHA E REFEITORIO", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.2.01.01.99.35": {"desc": "PROVISÃO BONIF STAR CLASS VANS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.2.01.01.99.36": {"desc": "STAR CLASS ONIBUS", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}, "3.8.01.01.99.03": {"desc": "PERDA NA ALIENAÇÃO/BAIXA DE IMOBILIZADO", "subgrupo": "Resultado Líquido", "grupo": "( + / - ) RESULTADO DO EXERCÍCIO", "codigo": "Passivo"}};
+
+// DFC Hierarchy
+const DFC_GROUPS = {
+  'Operational Cash Flow': {
+    label: 'Operational Cash Flow',
+    items: [
+      { key: '( + / - ) RESULTADO DO EXERCÍCIO', label: '( + / - ) RESULTADO DO EXERCÍCIO' },
+      { key: '( -  ) NECESSIDADE DE CAPITAL DE GIRO', label: '( - ) NECESSIDADE DE CAPITAL DE GIRO' },
+      { key: '( -  ) OUTROS OPERACIONAIS', label: '( - ) OUTROS OPERACIONAIS' },
+    ]
+  },
+  'Free Cash Flow': {
+    label: 'Free Cash Flow',
+    items: [
+      { key: '( -  ) INVESTIMENTOS', label: '( - ) INVESTIMENTOS' },
+      { key: '( -  ) CAPEX', label: '( - ) CAPEX' },
+    ]
+  },
+  'Third-Party Cash Flow': {
+    label: 'Third-Party Cash Flow',
+    items: [
+      { key: '( -  ) EMPRÉSTIMOS E FINANCIAMENTOS', label: '( - ) EMPRÉSTIMOS E FINANCIAMENTOS' },
+    ]
+  },
+  'Equity Cash Flow': {
+    label: 'Equity Cash Flow',
+    items: [
+      { key: '( -  ) ENTRADA / RETIRADA DE SÓCIOS', label: '( - ) ENTRADA / RETIRADA DE SÓCIOS' },
+      { key: '( -  ) NÃO OPERACIONAL', label: '( - ) NÃO OPERACIONAL' },
+    ]
+  }
+};
+
+const DISPONIBILIDADES_SUBGRUPO = 'Disponibilidades Operacionais';
+
+// ============================================================
+// STATE
+// ============================================================
+let rawData = [];
+let dfcData = {};
+let allMonths = [];
+let selectedMonths = [];
+let empresas = [];
+
+// ============================================================
+// FILE HANDLING
+// ============================================================
+const dropzone = document.getElementById('dropzone');
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('drag'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+dropzone.addEventListener('drop', e => { 
+  e.preventDefault(); dropzone.classList.remove('drag');
+  const file = e.dataTransfer.files[0];
+  if(file) processFile(file);
+});
+
+function handleFile(e) {
+  const file = e.target.files[0];
+  if(file) processFile(file);
+}
+
+function processFile(file) {
+  showLoading(true);
+  document.getElementById('file-info-block').style.display = 'block';
+  document.getElementById('file-info').style.display = 'flex';
+  document.getElementById('file-name-display').textContent = file.name;
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const ext = file.name.split('.').pop().toLowerCase();
+      let data;
+      if(ext === 'csv') {
+        data = parseCSV(e.target.result);
+      } else {
+        const wb = XLSX.read(e.target.result, {type:'binary', cellDates:true});
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        data = XLSX.utils.sheet_to_json(ws, {raw:false, defval:''});
+      }
+      document.getElementById('file-meta-display').textContent = `${data.length} lançamentos encontrados`;
+      loadData(data);
+    } catch(err) {
+      showLoading(false);
+      alert('Erro ao ler arquivo: ' + err.message);
+    }
+  };
+  if(file.name.endsWith('.csv')) reader.readAsText(file, 'UTF-8');
+  else reader.readAsBinaryString(file);
+}
+
+function parseCSV(text) {
+  const lines = text.trim().split('\n');
+  const sep = text.includes('\t') ? '\t' : ',';
+  const headers = lines[0].split(sep).map(h => h.trim().replace(/"/g,''));
+  return lines.slice(1).filter(l=>l.trim()).map(line => {
+    const vals = line.split(sep).map(v=>v.trim().replace(/"/g,''));
+    const obj = {};
+    headers.forEach((h,i) => obj[h] = vals[i]||'');
+    return obj;
+  });
+}
+
+function parsePaste() {
+  const txt = document.getElementById('paste-area').value.trim();
+  if(!txt) return;
+  const lines = txt.split('\n');
+  const sep = txt.includes('\t') ? '\t' : ';';
+  const headers = lines[0].split(sep).map(h=>h.trim());
+  const data = lines.slice(1).filter(l=>l.trim()).map(line => {
+    const vals = line.split(sep).map(v=>v.trim());
+    const obj = {};
+    headers.forEach((h,i)=>obj[h]=vals[i]||'');
+    return obj;
+  });
+  document.getElementById('file-info-block').style.display='block';
+  document.getElementById('file-info').style.display='flex';
+  document.getElementById('file-name-display').textContent='Colagem de texto';
+  document.getElementById('file-meta-display').textContent=`${data.length} lançamentos`;
+  loadData(data);
+}
+
+// ============================================================
+// DATA NORMALIZATION
+// ============================================================
+function normalizeRow(row) {
+  // Map column names flexibly
+  const keys = Object.keys(row);
+  const find = (...names) => {
+    for(const n of names) {
+      const k = keys.find(k => k.toLowerCase().replace(/[^a-z0-9]/g,'').includes(n.toLowerCase().replace(/[^a-z0-9]/g,'')));
+      if(k !== undefined) return row[k];
+    }
+    return '';
+  };
+  
+  const empresa = find('empresa','company');
+  const conta = find('contacontabil','conta','account');
+  const data = find('data','date','dt');
+  const debito = find('debito','debit','deb');
+  const credito = find('credito','credit','cred');
+  const saldoAnterior = find('saldoanterior','saldo anterior','saldoant','opening');
+  const saldoAtual = find('saldoatual','saldo atual','saldoat','closing','balance');
+  const historico = find('historico','complemento','descricao','desc','memo');
+  
+  return {
+    empresa: String(empresa||'').trim(),
+    conta: String(conta||'').trim(),
+    data: parseDate(data),
+    debito: parseNum(debito),
+    credito: parseNum(credito),
+    saldoAnterior: parseNum(saldoAnterior),
+    saldoAtual: parseNum(saldoAtual),
+    historico: String(historico||'').trim()
+  };
+}
+
+function parseDate(v) {
+  if(!v) return null;
+  if(v instanceof Date) return v;
+  const s = String(v).trim();
+  // Try various formats
+  const m = s.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+  if(m) {
+    let [,d,mo,y] = m;
+    if(y.length===2) y='20'+y;
+    return new Date(+y, +mo-1, +d);
+  }
+  const d2 = new Date(s);
+  if(!isNaN(d2)) return d2;
+  return null;
+}
+
+function parseNum(v) {
+  if(v===null||v===undefined||v==='') return 0;
+  if(typeof v==='number') return v;
+  const s = String(v).trim().replace(/[^\d,\.\-]/g,'');
+  if(!s||s==='-') return 0;
+  // Handle Brazilian format: 1.234,56
+  if(s.includes(',') && s.includes('.')) {
+    return parseFloat(s.replace(/\./g,'').replace(',','.')) || 0;
+  }
+  if(s.includes(',')) return parseFloat(s.replace(',','.')) || 0;
+  return parseFloat(s) || 0;
+}
+
+function monthKey(date) {
+  if(!date) return 'Sem data';
+  const months = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  return `${months[date.getMonth()]}/${date.getFullYear()}`;
+}
+
+function monthSort(a, b) {
+  const months = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const [am, ay] = a.split('/');
+  const [bm, by] = b.split('/');
+  if(ay !== by) return +ay - +by;
+  return months.indexOf(am) - months.indexOf(bm);
+}
+
+// ============================================================
+// LOAD DATA
+// ============================================================
+function loadData(data) {
+  rawData = data.map(normalizeRow).filter(r => r.conta);
+  
+  // Get empresas
+  empresas = [...new Set(rawData.map(r=>r.empresa).filter(Boolean))].sort();
+  const selEmpresa = document.getElementById('sel-empresa');
+  selEmpresa.innerHTML = empresas.map(e=>`<option value="${e}">${e}</option>`).join('');
+  
+  // Get months
+  allMonths = [...new Set(rawData.map(r=>monthKey(r.data)).filter(m=>m!=='Sem data'))].sort(monthSort);
+  const selPeriodo = document.getElementById('sel-periodo');
+  selPeriodo.innerHTML = '<option value="all">Todos os meses</option>' + 
+    allMonths.map(m=>`<option value="${m}">${m}</option>`).join('');
+  
+  showLoading(false);
+  document.getElementById('controls-row').style.display='flex';
+  
+  // Auto-generate
+  gerarDFC();
+}
+
+function reProcess() { gerarDFC(); }
+
+// ============================================================
+// CORE DFC CALCULATION
+// ============================================================
+function calcSaldoVariation(rows, conta) {
+  // For DFC: variation = saldoFinal - saldoInicial
+  // Using saldoAnterior of first entry and saldoAtual of last entry
+  if(!rows.length) return 0;
+  const sorted = [...rows].sort((a,b)=>(a.data||0)-(b.data||0));
+  const saldoInicio = sorted[0].saldoAnterior;
+  const saldoFim = sorted[sorted.length-1].saldoAtual;
+  
+  const info = CONTA_MAP[conta];
+  const codigo = info ? info.codigo : 'Ativo';
+  
+  // For Ativo: increase = use of cash (negative), decrease = source (positive)
+  // DFC direto: variação = -(saldoFim - saldoInicio) for assets, +(saldoFim-saldoInicio) for liabilities
+  const variation = saldoFim - saldoInicio;
+  
+  if(codigo === 'Ativo') return -variation;
+  return variation; // Passivo/PL
+}
+
+function gerarDFC() {
+  const empresa = document.getElementById('sel-empresa').value;
+  const periodo = document.getElementById('sel-periodo').value;
+  
+  let filtered = rawData.filter(r => !empresa || r.empresa === empresa);
+  
+  // Determine months to show
+  let months;
+  if(periodo === 'all') {
+    months = allMonths;
+  } else {
+    months = [periodo];
+    filtered = filtered.filter(r => monthKey(r.data) === periodo);
+  }
+  
+  selectedMonths = months;
+  
+  // Group by conta and month
+  const byContaMonth = {};
+  for(const row of filtered) {
+    const mk = monthKey(row.data);
+    if(!byContaMonth[row.conta]) byContaMonth[row.conta] = {};
+    if(!byContaMonth[row.conta][mk]) byContaMonth[row.conta][mk] = [];
+    byContaMonth[row.conta][mk].push(row);
+  }
+  
+  // Calculate DFC
+  dfcData = {};
+  const unmatched = new Set();
+  
+  for(const [conta, monthData] of Object.entries(byContaMonth)) {
+    const info = CONTA_MAP[conta];
+    if(!info) { unmatched.add(conta); continue; }
+    
+    const subgrupo = info.subgrupo;
+    const grupo = info.grupo;
+    
+    if(!subgrupo) continue;
+    
+    // Is it disponibilidade?
+    const isDisp = subgrupo === DISPONIBILIDADES_SUBGRUPO;
+    
+    for(const [mk, rows] of Object.entries(monthData)) {
+      const variation = calcSaldoVariation(rows, conta);
+      
+      if(!dfcData[mk]) dfcData[mk] = { grupos: {}, disp: {}, contaDetails: {} };
+      
+      if(isDisp) {
+        if(!dfcData[mk].disp[conta]) dfcData[mk].disp[conta] = { desc: info.desc, val: 0 };
+        dfcData[mk].disp[conta].val += variation;
+      } else if(grupo) {
+        if(!dfcData[mk].grupos[grupo]) dfcData[mk].grupos[grupo] = { total: 0, contas: {} };
+        dfcData[mk].grupos[grupo].total += variation;
+        if(!dfcData[mk].grupos[grupo].contas[conta]) dfcData[mk].grupos[grupo].contas[conta] = { desc: info.desc, subgrupo, val: 0 };
+        dfcData[mk].grupos[grupo].contas[conta].val += variation;
+      }
+    }
+  }
+  
+  // Update empresa label
+  document.getElementById('empresa-label').textContent = empresa || '';
+  
+  renderDFC(months);
+  renderDisponibilidades(months);
+  
+  document.getElementById('dfc-empty').style.display='none';
+  document.getElementById('result-section').style.display='block';
+  document.getElementById('disp-empty').style.display='none';
+  document.getElementById('disp-result').style.display='block';
+  document.getElementById('btn-export').style.display='flex';
+  
+  document.getElementById('dfc-header-sub').textContent = `${empresa} — ${months.join(', ')}`;
+  
+  // Render unmatched
+  renderUnmatched([...unmatched]);
+}
+
+// ============================================================
+// RENDER DFC TABLE
+// ============================================================
+function renderDFC(months) {
+  const container = document.getElementById('dfc-table-container');
+  const pills = document.getElementById('month-pills-container');
+  
+  // Month pills
+  if(months.length > 1) {
+    pills.innerHTML = months.map(m => `<div class="month-pill active">${m.split('/')[0].substring(0,3)}</div>`).join('');
+  } else {
+    pills.innerHTML = `<span class="tag tag-blue">${months[0]}</span>`;
+  }
+  
+  const showTotal = months.length > 1;
+  
+  let html = `<div class="dfc-wrapper">
+    <div class="dfc-title-bar">
+      <div>
+        <div class="dfc-title">FLUXO DE CAIXA — MÉTODO DIRETO</div>
+        <div class="dfc-subtitle">Variação de caixa por categoria</div>
+      </div>
+    </div>
+    <div class="table-scroll">
+    <table>
+    <thead><tr>
+      <th>Contas</th>
+      ${months.map(m=>`<th>${m.split('/')[0].substring(0,3).toUpperCase()}</th>`).join('')}
+      ${showTotal ? '<th class="total-col">TOTAL</th>' : ''}
+    </tr></thead>
+    <tbody>`;
+  
+  let grandTotal = months.reduce((acc,m)=>({...acc,[m]:0}), {});
+  let grandTotalAll = 0;
+  const summaryData = {};
+  
+  for(const [groupKey, groupDef] of Object.entries(DFC_GROUPS)) {
+    const groupTotals = {};
+    let groupGrandTotal = 0;
+    months.forEach(m => groupTotals[m] = 0);
+    
+    for(const item of groupDef.items) {
+      const itemTotals = {};
+      let itemGrandTotal = 0;
+      months.forEach(m => itemTotals[m] = 0);
+      
+      for(const m of months) {
+        const val = dfcData[m]?.grupos?.[item.key]?.total || 0;
+        itemTotals[m] = val;
+        groupTotals[m] = (groupTotals[m]||0) + val;
+        itemGrandTotal += val;
+        groupGrandTotal += val;
+        grandTotal[m] = (grandTotal[m]||0) + val;
+        grandTotalAll += val;
+      }
+      
+      // Subgroup row with expand
+      const rowId = 'sg_' + item.key.replace(/[^a-z0-9]/gi,'_');
+      html += `<tr class="group-1 row-expand" onclick="toggleDetail('${rowId}')">
+        <td><span class="expand-icon" id="icon_${rowId}">▶</span>${item.label}</td>
+        ${months.map(m=>`<td class="${valClass(itemTotals[m])}">${fmt(itemTotals[m])}</td>`).join('')}
+        ${showTotal?`<td class="total-col ${valClass(itemGrandTotal)}">${fmt(itemGrandTotal)}</td>`:''}
+      </tr>`;
+      
+      // Detail rows (contas)
+      const allContas = {};
+      for(const m of months) {
+        const contas = dfcData[m]?.grupos?.[item.key]?.contas || {};
+        for(const [c, info] of Object.entries(contas)) {
+          if(!allContas[c]) allContas[c] = { desc: info.desc, months: {} };
+          allContas[c].months[m] = info.val;
+        }
+      }
+      
+      for(const [c, cInfo] of Object.entries(allContas)) {
+        const cTotal = months.reduce((s,m)=>(s+(cInfo.months[m]||0)),0);
+        html += `<tr class="group-2 detail-row" id="${rowId}_${c.replace(/\./g,'_')}">
+          <td>${cInfo.desc} <span style="color:var(--muted);font-size:10px">${c}</span></td>
+          ${months.map(m=>`<td class="${valClass(cInfo.months[m]||0)}">${fmt(cInfo.months[m]||0)}</td>`).join('')}
+          ${showTotal?`<td class="total-col ${valClass(cTotal)}">${fmt(cTotal)}</td>`:''}
+        </tr>`;
+      }
+    }
+    
+    // Group header row
+    const groupHtml = `<tr class="group-0">
+      <td>${groupDef.label}</td>
+      ${months.map(m=>`<td class="${valClass(groupTotals[m])}">${fmt(groupTotals[m])}</td>`).join('')}
+      ${showTotal?`<td class="total-col ${valClass(groupGrandTotal)}">${fmt(groupGrandTotal)}</td>`:''}
+    </tr>`;
+    
+    // Insert group header before its items - rebuild needed, so collect then insert
+    summaryData[groupKey] = { totals: groupTotals, grandTotal: groupGrandTotal };
+    html = html; // We'll prepend the group row below with a different approach
+    
+    // Actually, insert group row at the right position - let's build this properly
+    const itemsStart = html.lastIndexOf('<tr class="group-1');
+    if(itemsStart === -1) {
+      html += groupHtml;
+    } else {
+      // Count items in this group  
+      const insertPos = html.indexOf('<tr class="group-1', html.length - (html.length - itemsStart));
+      html = html.substring(0, itemsStart) + groupHtml + html.substring(itemsStart);
+    }
+  }
+  
+  // Rebuild properly - let's redo this cleanly
+  html = buildDFCTable(months, showTotal);
+  
+  // Summary cards
+  renderSummaryCards(summaryData, grandTotal, grandTotalAll, months, showTotal);
+  
+  container.innerHTML = html;
+  
+  // Attach toggle events
+  container.querySelectorAll('.row-expand').forEach(row => {
+    // Already have onclick
+  });
+}
+
+function buildDFCTable(months, showTotal) {
+  let html = `<div class="dfc-wrapper">
+    <div class="dfc-title-bar">
+      <div>
+        <div class="dfc-title">FLUXO DE CAIXA — MÉTODO DIRETO</div>
+        <div class="dfc-subtitle">Variação de saldo por categoria contábil</div>
+      </div>
+    </div>
+    <div class="table-scroll">
+    <table>
+    <thead><tr>
+      <th>Contas</th>
+      ${months.map(m=>`<th>${m.split('/')[0].substring(0,3).toUpperCase()}</th>`).join('')}
+      ${showTotal ? '<th class="total-col">TOTAL</th>' : ''}
+    </tr></thead>
+    <tbody>`;
+  
+  let grandTotals = {};
+  months.forEach(m => grandTotals[m] = 0);
+  let grandTotalAll = 0;
+  
+  for(const [groupKey, groupDef] of Object.entries(DFC_GROUPS)) {
+    const groupTotals = {};
+    let groupTotal = 0;
+    months.forEach(m => groupTotals[m] = 0);
+    
+    let bodyRows = '';
+    
+    for(const item of groupDef.items) {
+      const itemTotals = {};
+      let itemTotal = 0;
+      months.forEach(m => itemTotals[m] = 0);
+      
+      for(const m of months) {
+        const v = dfcData[m]?.grupos?.[item.key]?.total || 0;
+        itemTotals[m] = v;
+        groupTotals[m] += v;
+        itemTotal += v;
+        groupTotal += v;
+      }
+      
+      const rowId = 'sg_' + item.key.replace(/[^a-z0-9]/gi,'_');
+      bodyRows += `<tr class="group-1 row-expand" onclick="toggleDetail('${rowId}')">
+        <td><span class="expand-icon" id="icon_${rowId}">▶</span>${item.label}</td>
+        ${months.map(m=>`<td class="${valClass(itemTotals[m])}">${fmt(itemTotals[m])}</td>`).join('')}
+        ${showTotal?`<td class="total-col ${valClass(itemTotal)}">${fmt(itemTotal)}</td>`:''}
+      </tr>`;
+      
+      // Conta detail rows
+      const allContas = {};
+      for(const m of months) {
+        const contas = dfcData[m]?.grupos?.[item.key]?.contas || {};
+        for(const [c, info] of Object.entries(contas)) {
+          if(!allContas[c]) allContas[c] = { desc: info.desc, vals: {} };
+          allContas[c].vals[m] = (allContas[c].vals[m]||0) + info.val;
+        }
+      }
+      for(const [c, ci] of Object.entries(allContas)) {
+        const ct = months.reduce((s,m)=>s+(ci.vals[m]||0),0);
+        bodyRows += `<tr class="group-2 detail-row" id="${rowId}_d${c.replace(/\./g,'_')}">
+          <td>${ci.desc} <span style="color:var(--muted);font-size:10px">${c}</span></td>
+          ${months.map(m=>`<td class="${valClass(ci.vals[m]||0)}">${fmt(ci.vals[m]||0)}</td>`).join('')}
+          ${showTotal?`<td class="total-col ${valClass(ct)}">${fmt(ct)}</td>`:''}
+        </tr>`;
+      }
+    }
+    
+    // Group total row first
+    html += `<tr class="group-0">
+      <td>${groupDef.label}</td>
+      ${months.map(m=>`<td class="${valClass(groupTotals[m])}">${fmt(groupTotals[m])}</td>`).join('')}
+      ${showTotal?`<td class="total-col ${valClass(groupTotal)}">${fmt(groupTotal)}</td>`:''}
+    </tr>`;
+    html += bodyRows;
+    
+    months.forEach(m => grandTotals[m] += groupTotals[m]);
+    grandTotalAll += groupTotal;
+  }
+  
+  // Grand total
+  html += `<tr class="total-row">
+    <td>VARIAÇÃO DO DISPONÍVEL</td>
+    ${months.map(m=>`<td class="${valClass(grandTotals[m])}">${fmt(grandTotals[m])}</td>`).join('')}
+    ${showTotal?`<td class="total-col ${valClass(grandTotalAll)}">${fmt(grandTotalAll)}</td>`:''}
+  </tr>`;
+  
+  html += '</tbody></table></div></div>';
+  return html;
+}
+
+// ============================================================
+// DISPONIBILIDADES TABLE
+// ============================================================
+function renderDisponibilidades(months) {
+  const showTotal = months.length > 1;
+  const container = document.getElementById('disp-table-container');
+  
+  // Collect all disp contas
+  const allDispContas = {};
+  for(const m of months) {
+    const disp = dfcData[m]?.disp || {};
+    for(const [c, info] of Object.entries(disp)) {
+      if(!allDispContas[c]) allDispContas[c] = { desc: info.desc };
+    }
+  }
+  
+  let html = `<div class="dfc-wrapper">
+    <div class="dfc-title-bar">
+      <div class="dfc-title">DISPONIBILIDADES</div>
+    </div>
+    <div class="table-scroll">
+    <table>
+    <thead><tr>
+      <th>Disponibilidades</th>
+      ${months.map(m=>`<th>${m.split('/')[0].substring(0,3).toUpperCase()}</th>`).join('')}
+      ${showTotal?'<th class="total-col">TOTAL</th>':''}
+    </tr></thead>
+    <tbody>`;
+  
+  const dispTotals = {};
+  months.forEach(m=>dispTotals[m]=0);
+  let dispGrandTotal = 0;
+  
+  for(const [c, ci] of Object.entries(allDispContas)) {
+    const ct = months.reduce((s,m)=>{
+      const v = dfcData[m]?.disp?.[c]?.val||0;
+      return s+v;
+    },0);
+    html += `<tr class="group-1">
+      <td style="padding-left:20px!important">⊕ ${ci.desc}</td>
+      ${months.map(m=>{
+        const v = dfcData[m]?.disp?.[c]?.val||0;
+        dispTotals[m]+=v;
+        return `<td class="${valClass(v)}">${fmt(v)}</td>`;
+      }).join('')}
+      ${showTotal?`<td class="total-col ${valClass(ct)}">${fmt(ct)}</td>`:''}
+    </tr>`;
+    dispGrandTotal += ct;
+  }
+  
+  if(Object.keys(allDispContas).length === 0) {
+    html += `<tr><td colspan="${months.length+(showTotal?2:1)}" style="text-align:center;color:var(--muted);padding:20px">
+      Nenhuma conta de disponibilidade encontrada no razão
+    </td></tr>`;
+  }
+  
+  html += `<tr class="total-row">
+    <td>VARIAÇÃO DO DISPONÍVEL</td>
+    ${months.map(m=>`<td class="${valClass(dispTotals[m])}">${fmt(dispTotals[m])}</td>`).join('')}
+    ${showTotal?`<td class="total-col ${valClass(dispGrandTotal)}">${fmt(dispGrandTotal)}</td>`:''}
+  </tr>`;
+  
+  html += '</tbody></table></div></div>';
+  container.innerHTML = html;
+}
+
+// ============================================================
+// SUMMARY CARDS
+// ============================================================
+function renderSummaryCards(summaryData, grandTotal, grandTotalAll, months, showTotal) {
+  const container = document.getElementById('summary-cards');
+  const ocf = Object.values(grandTotal).reduce((s,v)=>s+v,0); // approximate
+  
+  const cards = [
+    { label: 'Operational Cash Flow', key: 'Operational Cash Flow' },
+    { label: 'Free Cash Flow', key: 'Free Cash Flow' },
+    { label: 'Third-Party Cash Flow', key: 'Third-Party Cash Flow' },
+    { label: 'Equity Cash Flow', key: 'Equity Cash Flow' },
+    { label: 'Variação Total', val: grandTotalAll },
+  ];
+  
+  // Recalculate totals per group
+  const groupTotals = {};
+  for(const [gk, gd] of Object.entries(DFC_GROUPS)) {
+    let total = 0;
+    for(const m of months) {
+      for(const item of gd.items) {
+        total += dfcData[m]?.grupos?.[item.key]?.total || 0;
+      }
+    }
+    groupTotals[gk] = total;
+  }
+  
+  container.innerHTML = [...Object.entries(DFC_GROUPS).map(([k,d]) => {
+    const v = groupTotals[k] || 0;
+    return `<div class="summary-card">
+      <div class="summary-label">${d.label}</div>
+      <div class="summary-val ${v>=0?'pos':'neg'}">${fmt(v)}</div>
+    </div>`;
+  }),
+  `<div class="summary-card" style="border-color:var(--accent)">
+    <div class="summary-label">Variação do Disponível</div>
+    <div class="summary-val ${grandTotalAll>=0?'pos':'neg'}" style="font-size:22px">${fmt(grandTotalAll)}</div>
+  </div>`].join('');
+}
+
+// ============================================================
+// UNMATCHED
+// ============================================================
+function renderUnmatched(contas) {
+  const container = document.getElementById('unmatched-container');
+  if(!contas.length) { container.innerHTML=''; return; }
+  
+  // Count occurrences
+  const counts = {};
+  for(const row of rawData) {
+    if(contas.includes(row.conta)) counts[row.conta] = (counts[row.conta]||0)+1;
+  }
+  
+  const sorted = contas.sort((a,b)=>(counts[b]||0)-(counts[a]||0));
+  
+  container.innerHTML = `<div class="unmatched-section">
+    <div class="unmatched-title">⚠ ${contas.length} contas sem mapeamento no de-para</div>
+    <div class="alert alert-warn">Essas contas não constam no arquivo de-para.xlsx e foram ignoradas no cálculo.</div>
+    <div class="unmatched-list">
+      ${sorted.map(c=>`<div class="unmatched-item">
+        <span style="font-family:monospace">${c}</span>
+        <span class="tag tag-yellow">${counts[c]||0} lançamentos</span>
+      </div>`).join('')}
+    </div>
+  </div>`;
+}
+
+// ============================================================
+// HELPERS
+// ============================================================
+function fmt(v) {
+  if(v === 0) return '<span class="val-zero">—</span>';
+  const abs = Math.abs(v);
+  const s = abs.toLocaleString('pt-BR', {minimumFractionDigits:3, maximumFractionDigits:3});
+  return v < 0 ? `-${s}` : s;
+}
+
+function valClass(v) {
+  if(v > 0) return 'val-pos';
+  if(v < 0) return 'val-neg';
+  return 'val-zero';
+}
+
+function toggleDetail(rowId) {
+  const icon = document.getElementById('icon_'+rowId);
+  const rows = document.querySelectorAll(`[id^="${rowId}_d"]`);
+  const isOpen = icon && icon.classList.contains('open');
+  if(icon) icon.classList.toggle('open', !isOpen);
+  rows.forEach(r => r.classList.toggle('visible', !isOpen));
+}
+
+function showLoading(v) {
+  document.getElementById('loading').style.display = v ? 'flex' : 'none';
+}
+
+function showTab(tab) {
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('panel-'+tab).classList.add('active');
+  document.getElementById('tab-'+tab).classList.add('active');
+}
+
+// ============================================================
+// EXPORT EXCEL
+// ============================================================
+function exportExcel() {
+  if(!selectedMonths.length) return;
+  const wb = XLSX.utils.book_new();
+  
+  // DFC Sheet
+  const dfcRows = [
+    ['FLUXO DE CAIXA — MÉTODO DIRETO'],
+    [''],
+    ['Contas', ...selectedMonths, ...(selectedMonths.length>1?['TOTAL']:[])],
+  ];
+  
+  for(const [groupKey, groupDef] of Object.entries(DFC_GROUPS)) {
+    const groupTotals = {};
+    let groupTotal = 0;
+    selectedMonths.forEach(m=>groupTotals[m]=0);
+    
+    for(const item of groupDef.items) {
+      const itemTotals = {};
+      let itemTotal = 0;
+      selectedMonths.forEach(m=>itemTotals[m]=0);
+      for(const m of selectedMonths) {
+        const v = dfcData[m]?.grupos?.[item.key]?.total||0;
+        itemTotals[m]=v; groupTotals[m]+=v; itemTotal+=v; groupTotal+=v;
+      }
+      dfcRows.push([item.label, ...selectedMonths.map(m=>itemTotals[m]), ...(selectedMonths.length>1?[itemTotal]:[])]);
+    }
+    dfcRows.push([groupDef.label, ...selectedMonths.map(m=>groupTotals[m]), ...(selectedMonths.length>1?[groupTotal]:[])]);
+    dfcRows.push(['']);
+  }
+  
+  const grandTotals = {};
+  selectedMonths.forEach(m=>{
+    grandTotals[m]=0;
+    for(const [gk,gd] of Object.entries(DFC_GROUPS))
+      for(const item of gd.items)
+        grandTotals[m]+=(dfcData[m]?.grupos?.[item.key]?.total||0);
+  });
+  const gTotal = Object.values(grandTotals).reduce((s,v)=>s+v,0);
+  dfcRows.push(['VARIAÇÃO DO DISPONÍVEL', ...selectedMonths.map(m=>grandTotals[m]), ...(selectedMonths.length>1?[gTotal]:[])]);
+  
+  const ws1 = XLSX.utils.aoa_to_sheet(dfcRows);
+  XLSX.utils.book_append_sheet(wb, ws1, 'Fluxo de Caixa');
+  
+  // Disponibilidades Sheet
+  const dispRows = [['DISPONIBILIDADES'], [''], ['Disponibilidades', ...selectedMonths, ...(selectedMonths.length>1?['TOTAL']:[])]]
+  const allContas = {};
+  for(const m of selectedMonths) {
+    for(const [c,info] of Object.entries(dfcData[m]?.disp||{})) {
+      if(!allContas[c]) allContas[c]=info.desc;
+    }
+  }
+  for(const [c,desc] of Object.entries(allContas)) {
+    const vals = selectedMonths.map(m=>dfcData[m]?.disp?.[c]?.val||0);
+    dispRows.push([desc, ...vals, ...(selectedMonths.length>1?[vals.reduce((s,v)=>s+v,0)]:[])]);
+  }
+  const ws2 = XLSX.utils.aoa_to_sheet(dispRows);
+  XLSX.utils.book_append_sheet(wb, ws2, 'Disponibilidades');
+  
+  const empresa = document.getElementById('sel-empresa').value || 'DFC';
+  XLSX.writeFile(wb, `DFC_${empresa.replace(/\s+/g,'_')}_${new Date().toISOString().slice(0,10)}.xlsx`);
+}
+</script>
+</body>
+</html>
