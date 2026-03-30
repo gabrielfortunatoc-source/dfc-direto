@@ -553,7 +553,7 @@ function processFile(file) {
       const ext = file.name.split('.').pop().toLowerCase();
       let data;
       if(ext === 'csv') { data = parseCSV(e.target.result); }
-      else { const wb = XLSX.read(e.target.result, {type:'binary',cellDates:true}); const ws = wb.Sheets[wb.SheetNames[0]]; data = XLSX.utils.sheet_to_json(ws, {raw:false,defval:''}); }
+      else { const wb = XLSX.read(e.target.result, {type:'binary',cellDates:true,dateNF:'yyyy-mm-dd'}); const ws = wb.Sheets[wb.SheetNames[0]]; data = XLSX.utils.sheet_to_json(ws, {raw:false,defval:'',dateNF:'yyyy-mm-dd'}); }
       document.getElementById('file-meta-disp').textContent = data.length + ' lançamentos encontrados';
       loadData(data);
     } catch(err) { showLoading(false); alert('Erro: ' + err.message); }
@@ -583,26 +583,52 @@ function parsePaste() {
 
 function normalizeRow(row) {
   const keys = Object.keys(row);
-  const find = (...names) => { for(const n of names) { const k=keys.find(k=>k.toLowerCase().replace(/[^a-z0-9]/g,'').includes(n.toLowerCase().replace(/[^a-z0-9]/g,''))); if(k!==undefined) return row[k]; } return ''; };
+  // Normalize key: lowercase, remove spaces, remove accents
+  const norm = s => s.toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9]/g,'');
+  const normKeys = keys.map(k => norm(k));
+
+  const find = (...names) => {
+    for(const n of names) {
+      const nn = norm(n);
+      const idx = normKeys.findIndex(k => k.includes(nn));
+      if(idx !== -1) return row[keys[idx]];
+    }
+    return '';
+  };
   return {
     empresa: String(find('empresa','company')||'').trim(),
-    conta: String(find('contacontabil','conta','account')||'').trim(),
+    conta: String(find('conta contabil','conta','account')||'').trim(),
     data: parseDate(find('data','date','dt')),
-    debito: parseNum(find('debito','debit','deb')),
-    credito: parseNum(find('credito','credit','cred')),
-    saldoAnterior: parseNum(find('saldoanterior','saldo anterior','opening')),
-    saldoAtual: parseNum(find('saldoatual','saldo atual','closing','balance')),
+    debito: parseNum(find('debito','debit')),
+    credito: parseNum(find('credito','credit')),
+    saldoAnterior: parseNum(find('saldo anterior','saldo ant','opening')),
+    saldoAtual: parseNum(find('saldo atual','saldo at','closing','balance')),
     historico: String(find('historico','complemento','descricao','memo')||'').trim()
   };
 }
 
 function parseDate(v) {
   if(!v) return null;
-  if(v instanceof Date) return v;
+  if(v instanceof Date) return isNaN(v) ? null : v;
+  // Excel serial number (e.g. 45654)
+  if(typeof v === 'number' || (typeof v === 'string' && /^\d{5}$/.test(v.trim()))) {
+    const serial = +v;
+    if(serial > 40000 && serial < 60000) {
+      const d = new Date((serial - 25569) * 86400 * 1000);
+      return isNaN(d) ? null : d;
+    }
+  }
   const s = String(v).trim();
-  const m = s.match(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})/);
-  if(m) { let [,d,mo,y]=m; if(y.length===2) y='20'+y; return new Date(+y,+mo-1,+d); }
-  const d2 = new Date(s); return isNaN(d2) ? null : d2;
+  // ISO with time: 2026-01-02T12:00:00 or 2026-01-02 12:00:00
+  const iso = s.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+  if(iso) return new Date(+iso[1], +iso[2]-1, +iso[3]);
+  // BR format: 02/01/2026
+  const br = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+  if(br) { let [,d,mo,y]=br; if(y.length===2) y='20'+y; return new Date(+y,+mo-1,+d); }
+  const d2 = new Date(s);
+  return isNaN(d2) ? null : d2;
 }
 
 function parseNum(v) {
