@@ -599,12 +599,13 @@ function normalizeRow(row) {
   };
   return {
     empresa: String(find('empresa','company')||'').trim(),
-    conta: String(find('conta contabil','conta','account')||'').trim(),
+    conta: String(find('conta contabil','contabil','account')||'').trim(),
+    contrapartida: String(find('contra partida','contrapartida','contacontabilcontra')||'').trim(),
     data: parseDate(find('data','date','dt')),
     debito: parseNum(find('debito','debit')),
     credito: parseNum(find('credito','credit')),
-    saldoAnterior: parseNum(find('saldo anterior','saldo ant','opening')),
-    saldoAtual: parseNum(find('saldo atual','saldo at','closing','balance')),
+    saldoAnterior: parseNum(find('saldo anterior','saldoanterior','opening')),
+    saldoAtual: parseNum(find('saldo atual','saldoatual','closing','balance')),
     historico: String(find('historico','complemento','descricao','memo')||'').trim()
   };
 }
@@ -632,13 +633,14 @@ function parseDate(v) {
 }
 
 function parseNum(v) {
-  if(v===null||v===undefined||v==='') return 0;
+  if(v===null||v===undefined||v===''||v===0) return 0;
   if(typeof v==='number') return v;
-  const s = String(v).trim().replace(/[^\d,\.\-]/g,'');
-  if(!s||s==='-') return 0;
+  const s = String(v).trim();
+  if(!s||s==='-'||s==='0') return 0;
+  // Brazilian format: 1.234,56
   if(s.includes(',')&&s.includes('.')) return parseFloat(s.replace(/\./g,'').replace(',','.'))||0;
   if(s.includes(',')) return parseFloat(s.replace(',','.'))||0;
-  return parseFloat(s)||0;
+  return parseFloat(s.replace(/[^\d\.\-]/g,''))||0;
 }
 
 function monthKey(d) {
@@ -668,14 +670,6 @@ function loadData(data) {
 
 function reProcess() { gerarDFC(); }
 
-function calcVariation(rows, conta) {
-  if(!rows.length) return 0;
-  const sorted = [...rows].sort((a,b)=>(a.data||0)-(b.data||0));
-  const variation = sorted[sorted.length-1].saldoAtual - sorted[0].saldoAnterior;
-  const info = CONTA_MAP[conta];
-  return (info&&info.codigo==='Ativo') ? -variation : variation;
-}
-
 function gerarDFC() {
   const empresa = document.getElementById('sel-empresa').value;
   const periodo = document.getElementById('sel-periodo').value;
@@ -684,34 +678,42 @@ function gerarDFC() {
   if(periodo!=='all') filtered = filtered.filter(r=>monthKey(r.data)===periodo);
   selectedMonths = months;
 
-  const byContaMonth = {};
-  for(const row of filtered) {
-    const mk = monthKey(row.data);
-    if(!byContaMonth[row.conta]) byContaMonth[row.conta]={};
-    if(!byContaMonth[row.conta][mk]) byContaMonth[row.conta][mk]=[];
-    byContaMonth[row.conta][mk].push(row);
-  }
-
   dfcData = {};
   const unmatched = new Set();
 
-  for(const [conta, monthData] of Object.entries(byContaMonth)) {
-    const info = CONTA_MAP[conta];
-    if(!info) { unmatched.add(conta); continue; }
-    const isDisp = info.subgrupo === DISP_SUBGRUPO;
-    for(const [mk, rows] of Object.entries(monthData)) {
-      const v = calcVariation(rows, conta);
+  // DFC MÉTODO DIRETO pela CONTRAPARTIDA:
+  // Débito na conta bancária = ENTRADA de caixa (positivo)
+  // Crédito na conta bancária = SAÍDA de caixa (negativo)
+  // A CONTRAPARTIDA classifica onde vai na DFC
+
+  for(const row of filtered) {
+    const cp = row.contrapartida;
+    const mk = monthKey(row.data);
+    const valor = row.debito - row.credito;
+
+    if(!valor || !mk || mk==='Sem data') continue;
+
+    // Disponibilidades: usa a própria conta bancária
+    const contaInfo = CONTA_MAP[row.conta];
+    if(contaInfo && contaInfo.subgrupo === DISP_SUBGRUPO) {
       if(!dfcData[mk]) dfcData[mk]={grupos:{},disp:{}};
-      if(isDisp) {
-        if(!dfcData[mk].disp[conta]) dfcData[mk].disp[conta]={desc:info.desc,val:0};
-        dfcData[mk].disp[conta].val += v;
-      } else if(info.grupo) {
-        if(!dfcData[mk].grupos[info.grupo]) dfcData[mk].grupos[info.grupo]={total:0,contas:{}};
-        dfcData[mk].grupos[info.grupo].total += v;
-        if(!dfcData[mk].grupos[info.grupo].contas[conta]) dfcData[mk].grupos[info.grupo].contas[conta]={desc:info.desc,val:0};
-        dfcData[mk].grupos[info.grupo].contas[conta].val += v;
-      }
+      const dispKey = row.conta;
+      if(!dfcData[mk].disp[dispKey]) dfcData[mk].disp[dispKey]={desc:contaInfo.desc,val:0};
+      dfcData[mk].disp[dispKey].val += valor;
     }
+
+    // DFC grupos: usa a CONTRAPARTIDA
+    if(!cp || cp==='') { unmatched.add('(sem contrapartida)'); continue; }
+    const info = CONTA_MAP[cp];
+    if(!info) { unmatched.add(cp); continue; }
+    if(!info.grupo) continue;
+
+    if(!dfcData[mk]) dfcData[mk]={grupos:{},disp:{}};
+    const grupo = info.grupo;
+    if(!dfcData[mk].grupos[grupo]) dfcData[mk].grupos[grupo]={total:0,contas:{}};
+    dfcData[mk].grupos[grupo].total += valor;
+    if(!dfcData[mk].grupos[grupo].contas[cp]) dfcData[mk].grupos[grupo].contas[cp]={desc:info.desc,val:0};
+    dfcData[mk].grupos[grupo].contas[cp].val += valor;
   }
 
   const badge = document.getElementById('empresa-badge');
